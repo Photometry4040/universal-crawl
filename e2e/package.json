@@ -4,7 +4,10 @@
   "private": true,
   "description": "E2E 테스트 하버니스 (확장 본체와 분리)",
   "scripts": {
-    "test": "node run.js"
+    "test:unit": "node unit.js",
+    "test:e2e": "node run.js",
+    "test:ux": "node ux.js",
+    "test": "node unit.js && node run.js && node ux.js"
   },
   "dependencies": {
     "playwright": "1.58"

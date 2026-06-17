@@ -8,10 +8,12 @@ global.window = global;
 
 require('../lib/robots.js');
 require('../lib/serialize.js');
+require('../lib/finder.js');
 require('../content/extractor.js');
 
 const R = self.__ucRobots;
 const S = self.__ucSerialize;
+const F = self.__ucFinder;
 const E = self.__ucExtract;
 
 let pass = 0, fail = 0;
@@ -54,6 +56,11 @@ check('[csv] BOM 선두', csv.charCodeAt(0) === 0xFEFF);
 check('[csv] CRLF 줄바꿈', csv.indexOf('\r\n') !== -1);
 check('[csv] 한글+쉼표+따옴표 셀 이스케이프', csv.includes('"안녕, ""세계"""'));
 check('[csv] null 셀 빈칸', /,\r\n|,$/.test(csv.split('\r\n')[2]));
+
+// ===== finder.js 클래스 안정성 — 오버레이/난수 클래스 제외(헤디드 e2e가 잡은 회귀 방지) =====
+check('[finder] 일반 클래스 허용', F.isStableClass('product_pod') === true && F.isStableClass('quote') === true);
+check('[finder] 오버레이 클래스 제외(추론 오염 방지)', F.isStableClass('uc-sample-highlight') === false && F.isStableClass('uc-preview-highlight') === false && F.isStableClass('uc-row-confirmed') === false);
+check('[finder] 난수/해시 클래스 제외', F.isStableClass('css-1a2b3c') === false && F.isStableClass('a1b2c3d4e5') === false);
 
 // ===== extractor.js transform — 확장의 실제 추출 변환 =====
 check('[transform] to_number £51.77', E.applyTransform('£51.77', 'to_number') === 51.77);

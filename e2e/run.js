@@ -160,7 +160,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
       // --- 7. 수집 행이 export 가능한 형태인지(실 다운로드는 saveAs 다이얼로그라 생략; CSV 직렬화는 단위테스트로 검증) ---
       const serializable = !!(job && job.rows && job.rows.every(r => typeof r.text === 'string'));
-      check('수집 행 CSV/JSON 직렬화 가능 형태', serializable, '(CSV RFC4180/BOM은 unit.js 27/27로 검증)');
+      check('수집 행 CSV/JSON 직렬화 가능 형태', serializable, '(CSV RFC4180/BOM은 unit.js로 검증)');
     }
 
     // --- 8. popup 페이지 로드(렌더/스크립트 오류 없음) ---
