@@ -1,0 +1,99 @@
+<!-- 교육/테스트 전용 도구. 대상 사이트의 robots.txt·ToS를 반드시 준수할 것. -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>Universal Selector Extractor</h1>
+    <span class="edu-badge">교육·테스트용</span>
+  </header>
+
+  <!-- 섹션 1: 대상 확인 -->
+  <section id="sec-target">
+    <h2>1. 대상 확인</h2>
+    <div class="row"><span class="label">도메인</span><span id="domain" class="mono">—</span></div>
+    <div class="row">
+      <span class="label">robots.txt</span>
+      <span id="robots-status" class="status">확인 중…</span>
+      <button id="robots-recheck" class="mini">재확인</button>
+    </div>
+    <div id="robots-banner" class="banner hidden"></div>
+    <label class="check">
+      <input type="checkbox" id="tos-check">
+      이 사이트의 이용약관(ToS)에서 자동 수집 허용 여부를 확인했습니다.
+    </label>
+  </section>
+
+  <!-- 섹션 2: 행 선택 -->
+  <section id="sec-row">
+    <h2>2. 행(row) 선택</h2>
+    <button id="btn-row-select" class="primary">행 선택 모드 시작</button>
+    <div class="row"><span class="label">매칭</span><span id="row-count" class="status">0개</span></div>
+    <label class="label-block">row_selector</label>
+    <input type="text" id="row-selector" class="mono input" placeholder=".product-card">
+    <button id="btn-row-preview" class="mini">미리보기</button>
+  </section>
+
+  <!-- 섹션 3: 필드 매핑 -->
+  <section id="sec-fields">
+    <h2>3. 필드 매핑</h2>
+    <button id="btn-field-select" class="primary">필드 선택 모드</button>
+    <div id="field-list"></div>
+    <button id="btn-add-field" class="mini">+ 필드 수동 추가</button>
+  </section>
+
+  <!-- 섹션 4: 페이지네이션 -->
+  <section id="sec-pagination">
+    <h2>4. 페이지네이션</h2>
+    <select id="pagi-type" class="input">
+      <option value="next_button">next_button (다음 버튼)</option>
+      <option value="url_pattern">url_pattern (?page={N})</option>
+      <option value="infinite_scroll">infinite_scroll (무한 스크롤)</option>
+    </select>
+    <input type="text" id="pagi-selector" class="mono input" placeholder="li.next a (next_button 셀렉터)">
+    <input type="text" id="pagi-pattern" class="mono input hidden" placeholder="https://.../?page={N}">
+    <div class="row2">
+      <label class="label-block">delay(ms, 최소 2000)
+        <input type="number" id="delay-ms" class="input" min="2000" value="2500">
+      </label>
+      <label class="label-block">max_pages(최대 20)
+        <input type="number" id="max-pages" class="input" min="1" max="20" value="5">
+      </label>
+    </div>
+  </section>
+
+  <!-- 섹션 5: 실행 -->
+  <section id="sec-run">
+    <h2>5. 실행</h2>
+    <div class="btn-row">
+      <button id="btn-extract-once" class="primary" disabled>현재 페이지 추출</button>
+      <button id="btn-collect" class="primary" disabled>N페이지 수집</button>
+      <button id="btn-stop" class="danger hidden">중단</button>
+    </div>
+    <div id="progress" class="status">대기 중</div>
+    <p id="gate-hint" class="hint"></p>
+  </section>
+
+  <!-- 섹션 6: 결과 -->
+  <section id="sec-result">
+    <h2>6. 결과</h2>
+    <div id="result-meta" class="status">행 없음</div>
+    <div id="preview-table" class="table-wrap"></div>
+    <div class="btn-row">
+      <button id="btn-csv" class="mini" disabled>CSV 다운로드</button>
+      <button id="btn-json" class="mini" disabled>JSON 다운로드</button>
+    </div>
+    <div class="btn-row">
+      <button id="btn-export-profile" class="mini">프로필 export</button>
+      <button id="btn-import-profile" class="mini">프로필 import</button>
+      <input type="file" id="import-file" accept="application/json" class="hidden">
+    </div>
+  </section>
+
+  <script src="../lib/robots.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

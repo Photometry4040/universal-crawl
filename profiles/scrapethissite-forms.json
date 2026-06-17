@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "site": "scrapethissite.com",
+  "url_sample": "https://www.scrapethissite.com/pages/forms/?page_num=1",
+  "row_selector": "table.table tr.team",
+  "fields": [
+    { "name": "team", "selector": ".name", "attr": "text", "transform": "trim" },
+    { "name": "year", "selector": ".year", "attr": "text", "transform": "to_number" },
+    { "name": "wins", "selector": ".wins", "attr": "text", "transform": "to_number" },
+    { "name": "losses", "selector": ".losses", "attr": "text", "transform": "to_number" }
+  ],
+  "pagination": { "type": "url_pattern", "selector": "", "pattern": "https://www.scrapethissite.com/pages/forms/?page_num={N}" },
+  "delay_ms": 2500,
+  "max_pages": 5,
+  "dedupe_key": ""
+}

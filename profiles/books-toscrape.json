@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "site": "books.toscrape.com",
+  "url_sample": "https://books.toscrape.com/catalogue/page-1.html",
+  "row_selector": "article.product_pod",
+  "fields": [
+    { "name": "title", "selector": "h3 a", "attr": "title", "transform": "trim" },
+    { "name": "price", "selector": ".price_color", "attr": "text", "transform": "to_number" },
+    { "name": "rating", "selector": "p.star-rating", "attr": "classToken:1", "transform": "word_to_number" },
+    { "name": "url", "selector": "h3 a", "attr": "href", "transform": "none" }
+  ],
+  "pagination": { "type": "next_button", "selector": "li.next a", "pattern": "" },
+  "delay_ms": 2500,
+  "max_pages": 5,
+  "dedupe_key": "url"
+}

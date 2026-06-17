@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Universal Selector Extractor (교육용)",
+  "version": "0.1.0",
+  "description": "교육/테스트 전용 시각적 셀렉터 데이터 추출 도구. robots.txt·ToS 준수 범위에서만 사용하세요.",
+  "permissions": ["activeTab", "scripting", "downloads", "storage", "tabs", "unlimitedStorage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Universal Selector Extractor",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "lib/finder.js",
+        "content/selector-infer.js",
+        "content/extractor.js",
+        "content/paginator.js",
+        "content/content.js"
+      ],
+      "css": ["content/overlay.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

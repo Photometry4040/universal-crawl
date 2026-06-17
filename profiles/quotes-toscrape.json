@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "site": "quotes.toscrape.com",
+  "url_sample": "https://quotes.toscrape.com/",
+  "row_selector": ".quote",
+  "fields": [
+    { "name": "text", "selector": ".text", "attr": "text", "transform": "trim" },
+    { "name": "author", "selector": ".author", "attr": "text", "transform": "trim" },
+    { "name": "tags", "selector": ".tag", "attr": "text_all", "transform": "none" }
+  ],
+  "pagination": { "type": "next_button", "selector": "li.next a", "pattern": "" },
+  "delay_ms": 2500,
+  "max_pages": 5,
+  "dedupe_key": "text"
+}
