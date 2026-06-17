@@ -8,9 +8,10 @@
  *  - 재개는 content→background 'contentReady' 단일 pull. background는 navigation만 트리거.
  *  - 안전장치(delay>=2000, maxPages<=20, consent)는 background에서 무조건 재강제.
  */
-importScripts('lib/robots.js');
+importScripts('lib/robots.js', 'lib/serialize.js');
 
 var R = self.__ucRobots;
+var S = self.__ucSerialize;
 var JOB_KEY = 'uc_job';
 var CONSENT_KEY = 'uc_consent';
 var READY_TIMEOUT_MS = 15000;
@@ -76,16 +77,8 @@ function sanitizeProfile(p) {
   };
   return out;
 }
-function clampDelay(v) {
-  var n = Number(v);
-  if (!isFinite(n)) n = MIN_DELAY_MS;
-  return Math.max(MIN_DELAY_MS, Math.floor(n));
-}
-function clampPages(v) {
-  var n = Number(v);
-  if (!isFinite(n)) n = 1;
-  return Math.min(MAX_PAGES_CAP, Math.max(1, Math.floor(n)));
-}
+function clampDelay(v) { return S.clampDelay(v); }
+function clampPages(v) { return S.clampPages(v); }
 
 // ---------- 메시지 송신 헬퍼 ----------
 function sendToTab(tabId, msg) {
@@ -341,22 +334,7 @@ async function extractOnce(profile, tabId) {
 }
 
 // ---------- 다운로드 ----------
-function csvEscape(v) {
-  if (v == null) return '';
-  var s = String(v);
-  if (/[",\r\n]/.test(s)) {
-    return '"' + s.replace(/"/g, '""') + '"';
-  }
-  return s;
-}
-function buildCsv(rows, fields) {
-  var headers = fields.map(function (f) { return f.name; });
-  var lines = [headers.map(csvEscape).join(',')];
-  rows.forEach(function (row) {
-    lines.push(headers.map(function (h) { return csvEscape(row[h]); }).join(','));
-  });
-  return '﻿' + lines.join('\r\n'); // BOM + CRLF
-}
+function buildCsv(rows, fields) { return S.buildCsv(rows, fields); }
 function downloadData(payload, mime, filename) {
   var dataUrl = 'data:' + mime + ';charset=utf-8,' + encodeURIComponent(payload);
   return new Promise(function (res) {

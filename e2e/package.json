@@ -1,0 +1,12 @@
+{
+  "name": "universal-crawl-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "E2E 테스트 하버니스 (확장 본체와 분리)",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "dependencies": {
+    "playwright": "1.58"
+  }
+}

@@ -18,11 +18,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 개발 워크플로우
 
-빌드/테스트 명령 없음. 변경 후:
+확장 빌드 스텝은 없다. 변경 후:
 1. `chrome://extensions` → 개발자 모드 ON → "압축해제된 확장 프로그램 로드" → 이 디렉터리 선택.
 2. 코드 수정 후 확장 카드의 새로고침(↻) 버튼 클릭. content script 변경은 대상 페이지도 새로고침 필요.
 3. 디버깅: 팝업은 우클릭 → "검사", service worker는 확장 카드의 "service worker" 링크, content script는 페이지 DevTools 콘솔.
-4. 수동 검증은 위 연습 사이트로 README의 테스트 시나리오를 따른다 (자동 테스트 없음).
+
+**자동 테스트(`e2e/`, 확장 본체와 분리·node_modules는 gitignore):**
+- `cd e2e && node unit.js` — 순수 로직 27종(robots/clamp/csv/transform). 실제 모듈을 node로 로드, 브라우저 불필요.
+- `cd e2e && npm install && npx playwright install chromium && node run.js` — **실제 확장을 Playwright 번들 Chromium에 로드**해 SW 오케스트레이션·안전장치·3페이지 수집까지 18종 e2e. 시스템 Chrome 137+는 `--load-extension`을 제거했으므로 번들 Chromium(Chrome for Testing) 필수.
+
+테스트는 연습 전용 사이트만 사용한다.
 
 ## 아키텍처
 
