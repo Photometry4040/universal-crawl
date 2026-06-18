@@ -65,3 +65,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - content script 모듈 간 통신은 ES import가 아니라 `window.__uc*` 전역. 새 모듈도 이 패턴을 따르고 manifest의 주입 순서 배열을 업데이트한다.
 - CSV는 UTF-8 BOM(`﻿`) + RFC4180 이스케이프로 한글/일본어 엑셀 호환을 보장.
 - 안전장치 상한/하한은 popup 입력 보정과 background 재검증 **양쪽**에서 강제 (UI 우회 방지).
+
+## 문서
+
+- `README.md` — 설치/사용/테스트 시나리오 + **문제 해결(Troubleshooting/디버그)** 섹션(버튼 비활성화·robots 🔴·다운로드·동적 사이트·디버깅 위치).
+- `SECURITY.md` — 권한 근거, 데이터 처리(로컬 전용·외부 전송 없음), 안전장치, 책임 있는 사용.
+- `e2e/README.md` — 자동 테스트(unit/run/ux) 실행법과 항목.
