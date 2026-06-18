@@ -34,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 세 실행 컨텍스트가 메시지로 통신한다. 컨텍스트 경계와 그 제약이 이 코드베이스의 핵심이다.
 
 ### 컨텍스트 구성
-- **popup/** — 컨트롤 패널 UI (6개 섹션: 대상확인/행선택/필드매핑/페이지네이션/실행/결과). DOM 보유. robots.txt fetch와 안전장치 입력 보정(delay≥2000, max_pages≤20)을 여기서 수행. 팝업은 닫히면 상태가 사라지므로 진행 중인 작업 상태는 `chrome.storage.local` 폴링으로 복원한다.
+- **popup/** — 컨트롤 패널 UI (6개 섹션: 대상확인/행선택/필드매핑/페이지네이션/실행/결과). DOM 보유. robots.txt fetch와 안전장치 입력 보정(delay≥2000, max_pages≤20)을 여기서 수행. **`chrome.sidePanel`로 동작**(manifest `side_panel.default_path`, 액션 클릭 시 `setPanelBehavior({openPanelOnActionClick:true})`로 열림) — 페이지 요소를 클릭하며 선택하는 동안에도 닫히지 않고, `chrome.tabs.query({active})`가 실제 웹 탭을 가리킨다(탭 전환 시 `tabs.onActivated`로 대상 갱신). 상태 동기화는 `chrome.storage.onChanged`. 같은 `popup/popup.html`이 사이드 패널 페이지로 쓰인다.
 - **content/** — 대상 페이지에 정적 주입(`content_scripts`, `<all_urls>`, `document_idle`). 주입 순서가 중요: `lib/finder.js` → `selector-infer.js` → `extractor.js` → `paginator.js` → `content.js`. 각 모듈은 `window.__ucFinder` / `__ucInfer` / `__ucExtract` / `__ucPaginate` 전역으로 서로를 호출한다 (ES module 아님 — 전역 네임스페이스 규약).
 - **background.js** — 서비스 워커. 다중 페이지 수집 잡(job)의 오케스트레이터. DOM/Blob URL 없음 → 다운로드는 반드시 data URL(`encodeURIComponent(BOM+payload)`)로 생성.
 

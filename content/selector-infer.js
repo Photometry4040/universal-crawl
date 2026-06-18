@@ -178,11 +178,45 @@
     return parts.join(' > ');
   }
 
+  // ---------- 반복 컨테이너 스냅 ----------
+  // 클릭한 요소가 카드 내부 깊숙한 하위 요소(스펙 셀 등)일 때, 형제 유사도로
+  // "반복되는 카드 컨테이너"를 찾아 올라간다. 빽빽한 카드형 목록에서 행 선택을 안정화.
+  function classKey(el) {
+    var c = stableClasses(el);
+    return tagName(el) + (c.length ? '.' + esc(c[0]) : '');
+  }
+  function siblingMatchCount(el) {
+    var p = el.parentElement;
+    if (!p) return 0;
+    var key = classKey(el);
+    var n = 0;
+    Array.prototype.forEach.call(p.children, function (sib) {
+      if (classKey(sib) === key) n++;
+    });
+    return n;
+  }
+  // el에서 위로 올라가며 "같은 형제가 가장 많은" 조상을 반복 카드로 선택(>=3).
+  function snapToRepeatingContainer(el) {
+    if (!el || el.nodeType !== 1) return el;
+    var best = el, bestScore = siblingMatchCount(el);
+    var cur = el, depth = 0;
+    while (cur && cur.parentElement && depth < 8) {
+      var tag = tagName(cur);
+      if (tag === 'body' || tag === 'main' || tag === 'html') break;
+      var score = siblingMatchCount(cur);
+      // 더 바깥에서 같은-형제 수가 같거나 많으면 그쪽을 카드로(외곽 우선)
+      if (score >= 3 && score >= bestScore) { best = cur; bestScore = score; }
+      cur = cur.parentElement; depth++;
+    }
+    return bestScore >= 3 ? best : el;
+  }
+
   window.__ucInfer = {
     inferFromSamples: inferFromSamples,
     inferSingle: inferSingle,
     generalize: generalize,
     previewCount: previewCount,
     inferRelative: inferRelative,
+    snapToRepeatingContainer: snapToRepeatingContainer,
   };
 })();

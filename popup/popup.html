@@ -82,10 +82,14 @@
     <h2>6. 결과</h2>
     <div id="result-meta" class="status">행 없음</div>
     <div id="preview-table" class="table-wrap"></div>
+    <label class="label-block">저장 폴더 (선택 — 다운로드 폴더 하위)</label>
+    <input type="text" id="dl-dir" class="mono input" placeholder="예: universal-crawl  (비우면 다운로드 폴더)">
+    <label class="check"><input type="checkbox" id="dl-saveas"> 다운로드할 때마다 저장 위치 묻기</label>
     <div class="btn-row">
       <button id="btn-csv" class="mini" disabled>CSV 다운로드</button>
       <button id="btn-json" class="mini" disabled>JSON 다운로드</button>
     </div>
+    <div id="dl-status" class="hint"></div>
     <div class="btn-row">
       <button id="btn-export-profile" class="mini">프로필 export</button>
       <button id="btn-import-profile" class="mini">프로필 import</button>

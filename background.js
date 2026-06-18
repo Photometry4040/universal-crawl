@@ -327,33 +327,54 @@ async function startCollect(rawProfile, tabId, tabUrl) {
   return { ok: true };
 }
 
-// 단일 페이지 추출(수집 잡 아님): 현재 탭에서 즉시 추출해 결과 반환
+// 단일 페이지 추출(수집 잡 아님): 즉시 추출 + 결과를 uc_job 스냅샷으로 저장해 export 가능하게.
 async function extractOnce(profile, tabId) {
-  var resp = await sendToTab(tabId, { type: 'extractPage', profile: sanitizeProfile(profile) });
+  var clean = sanitizeProfile(profile);
+  var resp = await sendToTab(tabId, { type: 'extractPage', profile: clean });
+  if (resp && resp.ok) {
+    await setJob({
+      active: false, status: 'done', phase: 'idle',
+      tabId: tabId, origin: null, profile: clean,
+      currentPage: 1, maxPages: clean.max_pages, delayMs: clean.delay_ms,
+      paginationType: clean.pagination.type, lastPageCompletedAt: Date.now(),
+      rows: resp.rows || [], seenKeys: [], endedAt: Date.now(), lastError: null,
+      source: 'extractOnce',
+    });
+  }
   return resp;
 }
 
 // ---------- 다운로드 ----------
 function buildCsv(rows, fields) { return S.buildCsv(rows, fields); }
-function downloadData(payload, mime, filename) {
+
+// 다운로드 폴더(Downloads 하위 상대경로만 허용)·파일명 정리
+function sanitizeFilename(dir, base) {
+  base = String(base || 'extract').replace(/[^\w.-]/g, '_');
+  var folder = String(dir || '').replace(/\\/g, '/').replace(/^\/+|\.\.+/g, '').replace(/[^\w./-]/g, '_').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+  return folder ? folder + '/' + base : base;
+}
+
+function downloadData(payload, mime, filename, saveAs) {
   var dataUrl = 'data:' + mime + ';charset=utf-8,' + encodeURIComponent(payload);
   return new Promise(function (res) {
-    chrome.downloads.download({ url: dataUrl, filename: filename, saveAs: true }, function (id) {
+    chrome.downloads.download({ url: dataUrl, filename: filename, saveAs: !!saveAs }, function (id) {
       if (chrome.runtime.lastError) { res({ ok: false, error: chrome.runtime.lastError.message }); return; }
       res({ ok: true, id: id });
     });
   });
 }
 
-async function exportJob(format) {
+// opts: { dir, saveAs }
+async function exportJob(format, opts) {
+  opts = opts || {};
   var job = await getJob();
-  if (!job || !job.rows || !job.rows.length) return { ok: false, error: 'no data' };
+  if (!job || !job.rows || !job.rows.length) return { ok: false, error: 'no data (먼저 추출/수집을 실행하세요)' };
   var site = (job.profile.site || 'extract').replace(/[^\w.-]/g, '_');
   if (format === 'json') {
-    return downloadData(JSON.stringify(job.rows, null, 2), 'application/json', site + '.json');
+    return downloadData(JSON.stringify(job.rows, null, 2), 'application/json', sanitizeFilename(opts.dir, site + '.json'), opts.saveAs);
   }
   var csv = buildCsv(job.rows, job.profile.fields);
-  return downloadData(csv, 'text/csv', site + '.csv');
+  return downloadData(csv, 'text/csv', sanitizeFilename(opts.dir, site + '.csv'), opts.saveAs);
 }
 
 // ---------- 부트스트랩(SW 재기동 시) ----------
@@ -370,6 +391,11 @@ async function bootstrap() {
   // 'navigating'은 곧 onUpdated/contentReady가 깨우므로 별도 처리 불필요
 }
 bootstrap();
+
+// ---------- 사이드 패널: 액션 클릭 시 열기(선택 내내 떠 있음) ----------
+try {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(function () {});
+} catch (e) { /* sidePanel 미지원 환경 무시 */ }
 
 // ---------- onUpdated: ready 가드 보조 ----------
 chrome.tabs.onUpdated.addListener(function (tabId, info) {
@@ -410,10 +436,10 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       })();
       return true;
     case 'exportCsv':
-      (async function () { sendResponse(await exportJob('csv')); })();
+      (async function () { sendResponse(await exportJob('csv', { dir: msg.dir, saveAs: msg.saveAs })); })();
       return true;
     case 'exportJson':
-      (async function () { sendResponse(await exportJob('json')); })();
+      (async function () { sendResponse(await exportJob('json', { dir: msg.dir, saveAs: msg.saveAs })); })();
       return true;
     case 'getJob':
       (async function () { sendResponse({ ok: true, job: await getJob() }); })();

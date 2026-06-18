@@ -97,9 +97,11 @@
     e.stopPropagation();
 
     if (state.mode === 'row_select') {
-      if (state.samples.indexOf(el) === -1) {
-        state.samples.push(el);
-        el.classList.add('uc-sample-highlight');
+      // 클릭한 하위 요소를 반복 카드 컨테이너로 스냅(빽빽한 카드형 목록 대응)
+      var container = Infer.snapToRepeatingContainer(el);
+      if (state.samples.indexOf(container) === -1) {
+        state.samples.push(container);
+        container.classList.add('uc-sample-highlight');
       }
       var result = Infer.inferFromSamples(state.samples);
       state.rowSelector = result.selector;

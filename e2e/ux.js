@@ -55,6 +55,22 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       new Promise(res => chrome.tabs.sendMessage(tid, msg, r => { void chrome.runtime.lastError; res(r || null); })),
     { tid: tabId, msg: message });
     const sGet = (key) => sw.evaluate(async (k) => (await chrome.storage.local.get(k))[k] || null, key);
+    // 페이지 컨텍스트에서 메시지 전송(SW가 수신) 후 응답을 storage로 회수
+    async function sendFromPage(tabId, message) {
+      await sw.evaluate(async ({ tid, msg }) => {
+        await new Promise(res => chrome.scripting.executeScript({
+          target: { tabId: tid },
+          func: (m) => chrome.runtime.sendMessage(m, (resp) => chrome.storage.local.set({ uc_test_resp: resp === undefined ? { ok: false, _u: true } : resp })),
+          args: [msg],
+        }, res));
+      }, { tid: tabId, msg: message });
+      for (let i = 0; i < 50; i++) {
+        const r = await sw.evaluate(async () => (await chrome.storage.local.get('uc_test_resp')).uc_test_resp);
+        if (r !== undefined && r !== null) { await sw.evaluate(async () => chrome.storage.local.remove('uc_test_resp')); return r; }
+        await sleep(200);
+      }
+      return null;
+    }
 
     const page = await ctx.newPage();
     await page.goto(TARGET, { waitUntil: 'domcontentloaded', timeout: 25000 });
@@ -180,6 +196,47 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
         note('[다운로드] 저장 파일 직접확인', 'item.state=' + (item && item.state) + ' 이나 파일 경로 미발견');
       }
     }
+
+    // ===== 4. 반복 컨테이너 스냅(빽빽한 중첩 카드) =====
+    // projectorcentral류 구조: 카드(.card) 안에 스펙 셀(.spec)이 여러 개. 스펙 셀을 클릭해도 카드로 스냅돼야 함.
+    const fixture = await ctx.newPage();
+    const DENSE = 'data:text/html,' + encodeURIComponent(
+      '<div id="list">' +
+      Array.from({ length: 6 }).map((_, i) =>
+        '<div class="card"><div class="title">Model ' + i + '</div><div class="specs">' +
+        '<dl><dt class="spec">res</dt><dd class="spec">1080p</dd>' +
+        '<dt class="spec">lumens</dt><dd class="spec">3000</dd>' +
+        '<dt class="spec">price</dt><dd class="spec">$' + (i * 100) + '</dd></dl></div></div>'
+      ).join('') + '</div>');
+    await fixture.goto(DENSE, { waitUntil: 'domcontentloaded' });
+    await fixture.addScriptTag({ path: EXT + '/lib/finder.js' });
+    await fixture.addScriptTag({ path: EXT + '/content/selector-infer.js' });
+    const snap = await fixture.evaluate(() => {
+      const cells = Array.from(document.querySelectorAll('dd.spec')); // 카드당 3개 = 18개
+      const snapped = cells.slice(0, 2).map(c => window.__ucInfer.snapToRepeatingContainer(c));
+      const isCard = snapped.every(s => s.classList.contains('card'));
+      const res = window.__ucInfer.inferFromSamples(snapped);
+      return {
+        cellCount: cells.length,
+        snappedToCard: isCard,
+        inferred: res.selector,
+        matches: window.__ucInfer.previewCount(res.selector),
+      };
+    });
+    check('[스냅] 빽빽한 카드: 스펙 셀(18개) 존재', snap.cellCount === 18, snap.cellCount + '개');
+    check('[스냅] 깊은 셀 클릭 → 카드(.card)로 스냅', snap.snappedToCard === true);
+    check('[스냅] 스냅 후 추론이 카드 6개 매칭(셀 18 아님)', snap.matches === 6, snap.inferred + ' → ' + snap.matches + '개');
+    await fixture.close();
+
+    // ===== 5. "현재 페이지 추출"(extractOnce) 후 다운로드 가능 (무데이터 버그 수정) =====
+    await sw.evaluate(async () => chrome.storage.local.remove(['uc_job', 'uc_exp_resp']));
+    // 페이지 컨텍스트에서 extractOnce 전송(SW 수신) — sendFromPage 헬퍼 재사용
+    const onceResp = await sendFromPage(tabId, { type: 'extractOnce', profile: QUOTES_PROFILE, tabId, tabUrl: TARGET });
+    check('[추출1회] extractOnce 응답 10행', !!(onceResp && onceResp.ok && onceResp.rows && onceResp.rows.length === 10), onceResp ? (onceResp.rows || []).length + '행' : 'no resp');
+    const jobAfterOnce = await sGet('uc_job');
+    check('[추출1회] extractOnce가 uc_job에 결과 저장', !!(jobAfterOnce && jobAfterOnce.rows && jobAfterOnce.rows.length === 10 && jobAfterOnce.source === 'extractOnce'), jobAfterOnce ? jobAfterOnce.rows.length + '행 source=' + jobAfterOnce.source : 'no job');
+    const csvAfterOnce = await sendFromPage(tabId, { type: 'exportCsv' });
+    check('[추출1회] 이후 CSV 다운로드 가능(무데이터 버그 수정)', !!(csvAfterOnce && csvAfterOnce.ok), JSON.stringify(csvAfterOnce).slice(0, 60));
 
     console.log('\n==== UX e2e 결과: ' + pass + ' PASS / ' + fail + ' FAIL / ' + skip + ' SKIP ====');
   } catch (e) {

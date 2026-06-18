@@ -137,17 +137,21 @@
       var div = document.createElement('div');
       div.className = 'field-item';
       div.innerHTML =
-        '<input class="name-in" value="' + escAttr(f.name) + '" placeholder="이름">' +
-        '<input class="sel-in mono" value="' + escAttr(f.selector) + '" placeholder="셀렉터">' +
-        '<input class="attr-in mono" value="' + escAttr(f.attr) + '" placeholder="text" title="attr: text|href|src|text_all|class|classToken:N|속성명">' +
-        '<select class="tf-in"></select>' +
-        '<button class="del" title="삭제">×</button>';
+        '<div class="fi-row1">' +
+          '<input class="name-in" value="' + escAttr(f.name) + '" placeholder="컬럼 이름 (예: model)">' +
+          '<button class="del" title="삭제">×</button>' +
+        '</div>' +
+        '<div class="fi-row2">' +
+          '<input class="sel-in mono" value="' + escAttr(f.selector) + '" placeholder="셀렉터 (예: .title)">' +
+          '<input class="attr-in mono" value="' + escAttr(f.attr) + '" placeholder="text" title="attr: text | href | src | text_all | class | classToken:N | 속성명">' +
+          '<select class="tf-in"></select>' +
+        '</div>';
       var tf = div.querySelector('.tf-in');
       ['none', 'trim', 'to_number', 'word_to_number'].forEach(function (t) {
         var o = document.createElement('option'); o.value = t; o.textContent = t;
         if (t === f.transform) o.selected = true; tf.appendChild(o);
       });
-      div.querySelector('.name-in').addEventListener('input', function (e) { fields[i].name = e.target.value; });
+      div.querySelector('.name-in').addEventListener('input', function (e) { fields[i].name = e.target.value; refreshGate(); });
       div.querySelector('.sel-in').addEventListener('input', function (e) { fields[i].selector = e.target.value; });
       div.querySelector('.attr-in').addEventListener('input', function (e) { fields[i].attr = e.target.value; });
       tf.addEventListener('change', function (e) { fields[i].transform = e.target.value; });
@@ -212,12 +216,17 @@
   function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
 
   // ---------- storage 동기화 ----------
+  function resetSelectButtons() {
+    $('btn-row-select').textContent = '행 선택 모드 시작';
+    $('btn-field-select').textContent = '필드 선택 모드';
+  }
   function applySelection(sel) {
     if (!sel) return;
     if (sel.rowSelector != null && sel.mode === 'row_select') {
       $('row-selector').value = sel.rowSelector;
       $('row-count').textContent = (sel.count || 0) + '개 (샘플 ' + (sel.sampleCount || 0) + ')';
     }
+    if (sel.mode === 'idle') resetSelectButtons(); // ESC 등으로 선택 종료
     refreshGate();
   }
   function applyJob(job) {
@@ -245,6 +254,7 @@
       if (!fields.some(function (f) { return f.selector === pick.selector; })) {
         var attr = (pick.tag === 'a' && pick.href) ? 'text' : 'text';
         addField({ selector: pick.selector, attr: attr });
+        $('btn-field-select').textContent = '필드 선택 중… (계속 클릭, ESC 종료)';
       }
     }
   });
@@ -263,8 +273,9 @@
       refreshGate();
     });
     $('btn-row-select').addEventListener('click', function () {
+      // 사이드 패널은 페이지 클릭에도 닫히지 않으므로 그대로 둠(실시간 갱신).
       sendTab({ type: 'enterSelectMode', target: 'row' });
-      window.close(); // 페이지 클릭을 위해 팝업 닫음(결과는 storage로 복귀)
+      $('btn-row-select').textContent = '행 선택 중… (페이지에서 클릭, ESC 종료)';
     });
     $('btn-row-preview').addEventListener('click', async function () {
       var r = await sendTab({ type: 'previewSelector', selector: $('row-selector').value.trim() });
@@ -275,7 +286,7 @@
       var rs = $('row-selector').value.trim();
       if (!rs) { alert('먼저 행(row) 셀렉터를 지정하세요.'); return; }
       sendTab({ type: 'enterSelectMode', target: 'field', rowSelector: rs });
-      window.close();
+      $('btn-field-select').textContent = '필드 선택 중… (행 안쪽 클릭, ESC 종료)';
     });
     $('btn-add-field').addEventListener('click', function () { addField(); });
     $('pagi-type').addEventListener('change', onPagiTypeChange);
@@ -290,11 +301,22 @@
       refreshGate();
     });
     $('btn-stop').addEventListener('click', async function () { await send({ type: 'stopCollect' }); refreshGate(); });
-    $('btn-csv').addEventListener('click', function () { send({ type: 'exportCsv' }); });
-    $('btn-json').addEventListener('click', function () { send({ type: 'exportJson' }); });
+    $('btn-csv').addEventListener('click', function () { doDownload('exportCsv'); });
+    $('btn-json').addEventListener('click', function () { doDownload('exportJson'); });
     $('btn-export-profile').addEventListener('click', exportProfile);
     $('btn-import-profile').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', importProfile);
+  }
+
+  async function doDownload(type) {
+    var status = $('dl-status');
+    status.textContent = '다운로드 준비 중…';
+    var resp = await send({ type: type, dir: $('dl-dir').value.trim(), saveAs: $('dl-saveas').checked });
+    if (resp && resp.ok) {
+      status.textContent = '✅ 다운로드 시작됨' + ($('dl-dir').value.trim() ? ' (다운로드/' + $('dl-dir').value.trim() + ')' : ' (다운로드 폴더)');
+    } else {
+      status.textContent = '❌ 다운로드 실패: ' + (resp && resp.error ? resp.error : '알 수 없음');
+    }
   }
 
   function exportProfile() {
@@ -321,30 +343,46 @@
     e.target.value = '';
   }
 
-  // ---------- 초기화 ----------
-  async function init() {
+  // ---------- 대상 탭 갱신(사이드 패널은 탭 전환에도 떠 있음) ----------
+  async function refreshTarget() {
     var tabs = await new Promise(function (r) { chrome.tabs.query({ active: true, currentWindow: true }, r); });
-    tab = tabs[0];
-    if (!tab || !/^https?:/.test(tab.url || '')) {
+    var newTab = tabs[0];
+    if (!newTab || !/^https?:/.test(newTab.url || '')) {
+      tab = newTab || null; origin = null;
       $('domain').textContent = '(http/https 페이지에서만 동작)';
+      $('robots-status').textContent = '—'; $('robots-status').className = 'status';
+      await refreshGate();
       return;
     }
-    origin = (function () { try { return new URL(tab.url).origin; } catch (e) { return null; } })();
+    var newOrigin = (function () { try { return new URL(newTab.url).origin; } catch (e) { return null; } })();
+    var originChanged = newOrigin !== origin;
+    tab = newTab; origin = newOrigin;
     $('domain').textContent = origin || tab.url;
+    var c = await getConsent();
+    $('tos-check').checked = !!(c && c.tos);
+    if (originChanged) await checkRobots(); // 오리진 바뀌면 robots 재평가
+    await refreshGate();
+  }
 
+  // ---------- 초기화 ----------
+  async function init() {
     bind();
     onPagiTypeChange();
 
-    // 복원: 선택/잡/consent
+    // 복원: 선택/잡
     var d = await sGet(['uc_selection', 'uc_job']);
     if (d.uc_selection) applySelection(d.uc_selection);
-    var c = await getConsent();
-    if (c) $('tos-check').checked = !!c.tos;
     renderFields();
-    await checkRobots();
+
+    await refreshTarget();
     var jobResp = await send({ type: 'getJob' });
     if (jobResp && jobResp.job) applyJob(jobResp.job);
-    refreshGate();
+
+    // 탭 전환/URL 변경 시 대상 갱신
+    chrome.tabs.onActivated.addListener(function () { refreshTarget(); });
+    chrome.tabs.onUpdated.addListener(function (tabId, info, t) {
+      if (tab && tabId === tab.id && info.url) refreshTarget();
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);
