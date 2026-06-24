@@ -13,7 +13,7 @@ npx playwright install chromium   # 풀 Chromium 1회 다운로드 (헤드리스
 
 npm run test:unit   # 순수 로직 30종 (브라우저 불필요)
 npm run test:e2e    # 오케스트레이션 18종 (헤디드)
-npm run test:ux     # UX 상호작용 15종 (헤디드)
+npm run test:ux     # UX 상호작용 21종 (헤디드)
 npm test            # 위 셋 순차 실행
 ```
 
