@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 교육/테스트 전용 **시각적 셀렉터 기반 데이터 추출 크롬 익스텐션 (Manifest V3)**. 사용자가 페이지에서 샘플 요소를 클릭하면 공통 CSS 셀렉터를 역추론하여 유사 요소를 일괄 추출하고, 페이지를 넘기며 누적 수집해 CSV/JSON으로 내보낸다.
 
-**구현 상태**: 초기 단계. 현재 `manifest.json`만 존재. 전체 설계 계획은 `~/.claude/plans/keen-orbiting-harp.md`에 있으며 이것이 아키텍처의 권위 있는 출처다.
+**구현 상태**: 크롬 익스텐션 본체 구현 완료(매니페스트·content·background·popup·lib·profiles·e2e). 설계 계획 원본은 `~/.claude/plans/keen-orbiting-harp.md`.
+
+**두 번째 타깃 — 데스크탑 앱(`desktop/`)**: 회사 보안상 크롬 확장 차단 환경을 위해 동일 기능을 **Tauri v2 + 임베디드 WebView** 데스크탑 앱으로 이식(확장의 `finder/selector-infer/extractor/paginator/robots/serialize`를 `desktop/src-tauri/inject/`로 vendored 재사용). 자동 추출(항목 1클릭→컬럼 자동), 다중 페이지 수집, robots/ToS 게이트, CSV/JSON 내보내기까지 동작. 실행/구조/Tauri ACL 주의사항은 `desktop/README.md` 참고. 빌드 스텝 없음 제약은 **확장 본체에만** 적용되고 desktop/은 Rust/cargo 빌드를 가진다.
 
 ## 핵심 제약 (반드시 준수)
 
