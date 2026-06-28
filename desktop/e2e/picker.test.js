@@ -26,7 +26,7 @@ const HTML = `<!doctype html><html><body><div class="container">
   <div class="quote"><span class="text">"Q1"</span><small class="author">A1</small><a class="tag" href="/t/1">t1</a></div>
   <div class="quote"><span class="text">"Q2"</span><small class="author">A2</small><a class="tag" href="/t/2">t2</a></div>
   <div class="quote"><span class="text">"Q3"</span><small class="author">A3</small><a class="tag" href="/t/3">t3</a></div>
-</div></body></html>`;
+</div><nav><ul class="pager"><li class="next"><a href="/page/2/">Next</a></li></ul></nav></body></html>`;
 
 const dom = new JSDOM(HTML, { url: 'https://quotes.toscrape.com/', runScripts: 'outside-only' });
 const { window } = dom;
@@ -38,7 +38,7 @@ window.__TAURI__ = {
 };
 
 // 주입 순서대로 로드(앱과 동일)
-for (const f of ['finder.js', 'selector-infer.js', 'extractor.js', 'picker.js']) {
+for (const f of ['finder.js', 'selector-infer.js', 'extractor.js', 'paginator.js', 'picker.js']) {
   window.eval(fs.readFileSync(path.join(INJECT, f), 'utf8'));
 }
 
@@ -97,6 +97,26 @@ check('[추출] 3행 추출', Array.isArray(rows) && rows.length === 3, rows && 
 check('[추출] row[0].text == "Q1"', !!rows && rows[0].text === '"Q1"', rows && rows[0] && rows[0].text);
 check('[추출] row[0].author == A1', !!rows && rows[0].author === 'A1', rows && rows[0] && rows[0].author);
 check('[추출] fields 전달', !!cr && Array.isArray(cr.args.fields) && cr.args.fields.length === 2);
+
+// --- 4) 페이지네이션 다음 행동 → paginate_result 전달 ---
+check('[로드] __ucPaginate/__ucRunPaginate 전역', !!(window.__ucPaginate && window.__ucRunPaginate));
+
+// url_pattern: {N} 치환으로 다음 URL 계산
+window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'url_pattern', pattern: 'https://quotes.toscrape.com/page/{N}/' } }, 1);
+const pr1 = lastCall('paginate_result');
+check('[페이지] url_pattern paginate_result 호출', !!pr1);
+check('[페이지] url_pattern hasNext=true', !!pr1 && pr1.args.hasNext === true);
+check('[페이지] url_pattern href=page/2', !!pr1 && /\/page\/2\/$/.test(pr1.args.href || ''), pr1 && pr1.args.href);
+
+// next_button: .next a 의 href 회수
+window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'next_button', selector: '.next a' } }, 1);
+const pr2 = lastCall('paginate_result');
+check('[페이지] next_button href 회수', !!pr2 && /\/page\/2\/$/.test(pr2.args.href || ''), pr2 && pr2.args.href);
+
+// next_button 없음: hasNext=false
+window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'next_button', selector: '.no-such-next a' } }, 1);
+const pr3 = lastCall('paginate_result');
+check('[페이지] 다음 없음 → hasNext=false', !!pr3 && pr3.args.hasNext === false);
 
 console.log(`\n==== picker e2e: ${pass} PASS / ${fail} FAIL ====`);
 process.exit(fail ? 1 : 0);

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-paginate-result"
+description = "Enables the paginate_result command without any pre-configured scope."
+commands.allow = ["paginate_result"]
+
+[[permission]]
+identifier = "deny-paginate-result"
+description = "Denies the paginate_result command without any pre-configured scope."
+commands.deny = ["paginate_result"]

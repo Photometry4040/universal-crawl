@@ -10,6 +10,7 @@
     "allow-open-target",
     "allow-start-field-pick",
     "allow-request-extract",
+    "allow-start-collect",
     "allow-export-csv",
     "allow-export-json"
   ]

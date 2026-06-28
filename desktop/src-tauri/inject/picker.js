@@ -201,6 +201,28 @@
     return rows.length;
   }
 
+  // 잡 진행: 다음 페이지 행동 계산 → paginate_result로 백엔드에 보고.
+  // reload형(next_button/url_pattern)은 href를 백엔드가 navigate, infinite_scroll은
+  // 여기서 스크롤+신규행 대기 후 보고(백엔드가 같은 페이지 재추출 지시).
+  function runPaginate(profile, currentPage) {
+    var P = window.__ucPaginate;
+    if (!P) { safeInvoke('paginate_result', { hasNext: false }); return; }
+    var pg = (profile && profile.pagination) || {};
+    if (pg.type === 'infinite_scroll') {
+      P.scrollAndWait(profile).then(function (res) {
+        safeInvoke('paginate_result', { hasNext: !!res.grew, scrolled: true });
+      });
+      return;
+    }
+    var next = P.getNext(profile, currentPage);
+    if (next.jsButton) {
+      P.clickJsNext(profile);
+      safeInvoke('paginate_result', { hasNext: true, clicked: true });
+    } else {
+      safeInvoke('paginate_result', { hasNext: !!next.hasNext, href: next.href || null });
+    }
+  }
+
   function resetPick() {
     samples = [];
     mode = 'row';
@@ -214,6 +236,7 @@
   // 전역(테스트/직접호출용) — 이벤트 핸들러와 동일 로직 공유
   window.__ucStartFieldPick = startFieldPick;
   window.__ucRunExtract = runExtract;
+  window.__ucRunPaginate = runPaginate;
   window.__ucResetPick = resetPick;
 
   // 백엔드 → 대상: 'uc-cmd' 이벤트 수신(eval 대신). __TAURI__.event 준비될 때까지 폴링.
@@ -222,6 +245,7 @@
     diag('uc-cmd 수신: ' + (p.action || '?'));
     if (p.action === 'field_pick') startFieldPick(p.fieldIndex);
     else if (p.action === 'extract') runExtract(p.profile);
+    else if (p.action === 'paginate') runPaginate(p.profile, p.currentPage);
     else if (p.action === 'reset') resetPick();
   }
   function registerCmdListener(tries) {
@@ -229,6 +253,8 @@
       try {
         window.__TAURI__.event.listen('uc-cmd', function (ev) { handleCmd(ev && ev.payload); });
         diag('연결됨 · uc-cmd 대기 (invoke=' + (hasInvoke() ? 'OK' : '없음') + ')');
+        // 페이지 로드(또는 navigate 후 재주입) 시 백엔드에 통지 — 잡 재개 핸드셰이크.
+        safeInvoke('page_ready', { url: String(location.href) });
       } catch (e) { diag('listen 등록 예외: ' + e); }
     } else if (tries > 0) {
       setTimeout(function () { registerCmdListener(tries - 1); }, 200);

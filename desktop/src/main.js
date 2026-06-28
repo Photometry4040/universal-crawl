@@ -16,59 +16,90 @@ function setStatus(text) {
   $("status").textContent = text;
 }
 
+// 셀렉터에서 필드 이름 추정(.author → author). 비개발자가 안 짜도 되게.
+function guessFieldName(selector) {
+  if (!selector) return "";
+  const classes = selector.match(/\.([a-zA-Z][\w-]*)/g);
+  if (classes && classes.length) {
+    return classes[classes.length - 1].slice(1).replace(/-/g, "_");
+  }
+  const tag = selector.trim().split(/[\s>]+/).pop() || "";
+  return tag.replace(/[^a-zA-Z0-9_]/g, "");
+}
+
+async function startFieldPickFor(index) {
+  try {
+    await invoke("start_field_pick", { fieldIndex: index });
+    setStatus("대상 창에서 추출할 부분을 클릭하세요 (필드 #" + index + ")");
+  } catch (e) {
+    $("run-msg").textContent = "⚠ " + e;
+  }
+}
+
 function createFieldRow(index) {
   const row = document.createElement("div");
   row.className = "field-row";
   row.dataset.fieldIndex = String(index);
 
+  // 기본 보기: 이름 + 값 미리보기 + 집기/고급/삭제. 기술 옵션(셀렉터/속성/변환)은 '고급'에 숨김.
   row.innerHTML = `
-    <input class="field-name" placeholder="필드명" value="field_${index}" />
-    <input class="field-selector" placeholder="상대 셀렉터 (.text)" />
-    <select class="field-attr" aria-label="추출 속성">
-      <option value="text">text</option>
-      <option value="href">href</option>
-      <option value="src">src</option>
-      <option value="text_all">text_all</option>
-      <option value="attribute">속성</option>
-    </select>
-    <input class="field-custom-attr" placeholder="속성명" hidden />
-    <select class="field-transform" aria-label="변환">
-      <option value="none">none</option>
-      <option value="to_number">to_number</option>
-      <option value="trim">trim</option>
-      <option value="word_to_number">word_to_number</option>
-    </select>
-    <button type="button" class="secondary pick-field" aria-label="필드 집기">집기</button>
-    <button type="button" class="danger remove-field" aria-label="필드 삭제">삭제</button>
+    <div class="field-main">
+      <input class="field-name" placeholder="이름 (예: 제목)" />
+      <span class="field-preview" title="추출 미리보기">아직 안 집음</span>
+      <button type="button" class="pick-field">⊕ 집기</button>
+      <button type="button" class="ghost toggle-adv" title="셀렉터/속성 직접 편집">고급</button>
+      <button type="button" class="ghost remove-field" title="삭제">✕</button>
+    </div>
+    <div class="field-adv" hidden>
+      <label>셀렉터<input class="field-selector" placeholder=".text" /></label>
+      <label>값
+        <select class="field-attr">
+          <option value="text">텍스트</option>
+          <option value="href">링크(href)</option>
+          <option value="src">이미지(src)</option>
+          <option value="text_all">전체 텍스트</option>
+          <option value="attribute">속성…</option>
+        </select>
+        <input class="field-custom-attr" placeholder="속성명" hidden />
+      </label>
+      <label>변환
+        <select class="field-transform">
+          <option value="none">없음</option>
+          <option value="to_number">숫자로</option>
+          <option value="trim">공백제거</option>
+          <option value="word_to_number">영단어→숫자</option>
+        </select>
+      </label>
+    </div>
   `;
 
   const attr = row.querySelector(".field-attr");
   const customAttr = row.querySelector(".field-custom-attr");
   attr.addEventListener("change", () => {
     customAttr.hidden = attr.value !== "attribute";
-    if (!customAttr.hidden) {
-      customAttr.focus();
-    }
+    if (!customAttr.hidden) customAttr.focus();
   });
 
-  row.querySelector(".pick-field").addEventListener("click", async () => {
-    try {
-      await invoke("start_field_pick", { fieldIndex: index });
-      setStatus("필드 집기 #" + index + " · 대상 창에서 요소를 클릭하세요");
-    } catch (e) {
-      $("run-msg").textContent = "⚠ " + e;
-    }
+  row.querySelector(".toggle-adv").addEventListener("click", () => {
+    const adv = row.querySelector(".field-adv");
+    adv.hidden = !adv.hidden;
   });
+
+  row.querySelector(".pick-field").addEventListener("click", () => startFieldPickFor(index));
 
   row.querySelector(".remove-field").addEventListener("click", () => {
     row.remove();
-    if (!document.querySelector(".field-row")) {
-      addFieldRow();
-    }
-    setStatus("필드 행 삭제됨");
+    if (!document.querySelector(".field-row")) addFieldRow();
+    setStatus("필드 삭제됨");
   });
 
   return row;
+}
+
+// 새 필드 행 생성 후 곧바로 집기 모드(클릭 우선 흐름).
+async function addFieldByClick() {
+  const idx = addFieldRow({ silent: true });
+  await startFieldPickFor(idx);
 }
 
 function addFieldRow(options = {}) {
@@ -76,8 +107,9 @@ function addFieldRow(options = {}) {
   fieldCounter += 1;
   list.appendChild(createFieldRow(fieldCounter));
   if (!options.silent) {
-    setStatus("필드 행 추가됨");
+    setStatus("필드 추가됨");
   }
+  return fieldCounter;
 }
 
 function clampNumberInput(input, min, max) {
@@ -112,7 +144,33 @@ function collectProfile() {
       transform: row.querySelector(".field-transform").value,
     };
   });
-  return { row_selector: rowSelector, fields };
+  const mode = document.querySelector('input[name="pagination-mode"]:checked');
+  const target = $("pagination-target").value.trim();
+  const pagination = {
+    type: mode ? mode.value : "next_button",
+    selector: target,
+    pattern: target,
+  };
+  // 안전장치: UI 입력 보정(백엔드에서 한 번 더 재클램프)
+  const delay = Math.max(2000, parseInt($("pagination-delay").value, 10) || 2000);
+  const maxPages = Math.min(20, Math.max(1, parseInt($("pagination-max-pages").value, 10) || 1));
+  return { row_selector: rowSelector, fields, pagination, delay_ms: delay, max_pages: maxPages, dedupe_key: "" };
+}
+
+async function runCollect() {
+  const profile = collectProfile();
+  if (!profile.row_selector || profile.row_selector === "—") {
+    $("run-msg").textContent = "⚠ 먼저 대상 창에서 행(반복 요소)을 클릭해 집으세요.";
+    return;
+  }
+  $("run-msg").textContent = "";
+  $("progress").textContent = "수집 시작…";
+  try {
+    await invoke("start_collect", { profile });
+    setStatus("다중 페이지 수집 시작 (최대 " + profile.max_pages + "페이지)");
+  } catch (e) {
+    $("run-msg").textContent = "⚠ " + e;
+  }
 }
 
 async function runExtract() {
@@ -181,7 +239,7 @@ window.addEventListener("DOMContentLoaded", () => {
     openTarget($("url-input").value.trim());
   });
 
-  $("add-field").addEventListener("click", addFieldRow);
+  $("add-field").addEventListener("click", addFieldByClick);
   $("pagination-delay").addEventListener("change", (e) => {
     clampNumberInput(e.target, 2000);
   });
@@ -198,6 +256,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   $("run-extract").addEventListener("click", runExtract);
+  $("run-collect").addEventListener("click", runCollect);
   $("export-csv").addEventListener("click", () => exportFile("csv"));
   $("export-json").addEventListener("click", () => exportFile("json"));
 
@@ -211,24 +270,43 @@ window.addEventListener("DOMContentLoaded", () => {
     setStatus("셀렉터 집힘 · " + (p.count ?? 0) + "개 매칭");
   });
 
-  // 추출 결과(collect_rows → 'uc-rows') → 누적 개수·미리보기 갱신
+  // 추출 결과(collect_rows → 'uc-rows') → 누적 개수·미리보기·진행률 갱신
   listen("uc-rows", (event) => {
     const payload = event.payload || {};
-    renderPreview(payload);
-    setStatus("추출 완료 · " + (payload.count ?? 0) + "행");
+    if (payload.preview) renderPreview(payload);
+    if (payload.job) {
+      if (payload.done) {
+        $("progress").textContent = "✅ 수집 완료 · 누적 " + (payload.count ?? $("row-count").textContent) + "행";
+        setStatus("수집 완료");
+      } else {
+        $("progress").textContent =
+          "수집 중 · " + (payload.page ?? "?") + "/" + (payload.max ?? "?") + "페이지 · 누적 " + (payload.count ?? 0) + "행";
+        setStatus("수집 중 " + (payload.page ?? "?") + "/" + (payload.max ?? "?"));
+      }
+    } else {
+      setStatus("추출 완료 · " + (payload.count ?? 0) + "행");
+    }
   });
 
-  // 필드 집기 결과(on_field_pick → 'uc-field-pick') → 해당 필드 행 채우기
+  // 필드 집기 결과(on_field_pick → 'uc-field-pick') → 해당 필드 행 자동 채움
   listen("uc-field-pick", (event) => {
     const p = event.payload || {};
     const row = document.querySelector(`.field-row[data-field-index="${p.fieldIndex}"]`);
     if (!row) return;
     if (p.selector) row.querySelector(".field-selector").value = p.selector;
+    // 이름이 비어 있으면 셀렉터에서 자동 추정
+    const nameInput = row.querySelector(".field-name");
+    if (!nameInput.value.trim()) nameInput.value = guessFieldName(p.selector);
     const attrSel = row.querySelector(".field-attr");
     if (p.attr && ["text", "href", "src"].includes(p.attr)) {
       attrSel.value = p.attr;
       attrSel.dispatchEvent(new Event("change"));
     }
-    setStatus("필드 #" + p.fieldIndex + " 집힘 · " + (p.selector || ""));
+    const preview = row.querySelector(".field-preview");
+    if (preview) {
+      preview.textContent = p.sampleText ? "“" + p.sampleText + "”" : "(빈 값)";
+      preview.classList.add("picked");
+    }
+    setStatus("필드 #" + p.fieldIndex + " 집힘");
   });
 });

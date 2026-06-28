@@ -121,20 +121,57 @@ select {
   margin-bottom: 10px;
 }
 .field-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+.field-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.field-main .field-name { flex: 0 0 110px; }
+.field-main .field-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field-main .field-preview.picked { color: #16a34a; }
+.pick-field { flex: 0 0 auto; }
+.ghost {
+  background: transparent;
+  color: #64748b;
+  border-color: transparent;
+  padding: 6px 8px;
+}
+.ghost:hover { background: #f1f5f9; color: #334155; }
+
+.field-adv {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
 }
-.field-row .field-name { flex: 1 1 90px; min-width: 80px; }
-.field-row .field-selector { flex: 1 1 120px; min-width: 90px; font-family: ui-monospace, Menlo, monospace; }
-.field-row .field-attr { flex: 0 0 96px; }
-.field-row .field-custom-attr { flex: 0 0 92px; }
-.field-row .field-transform { flex: 0 0 124px; }
-.field-row .remove-field { flex: 0 0 auto; }
+.field-adv label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+}
+.field-adv .field-selector { width: 130px; font-family: ui-monospace, Menlo, monospace; }
+.field-adv[hidden] { display: none; }
 .field-custom-attr[hidden] { display: none; }
 
-.run-row { display: flex; align-items: center; gap: 10px; }
+.run-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.progress { font-size: 12px; color: #2563eb; margin: 8px 0 0; min-height: 14px; font-weight: 500; }
 .run-count { font-size: 13px; color: #475569; }
 .run-count b { color: #2563eb; }
 .export-row { display: flex; gap: 8px; margin-top: 10px; }
@@ -204,14 +241,16 @@ select {
   .radio-row { background: #0f172a; border-color: #334155; }
   .radio-row label { color: #cbd5e1; }
   .status { background: #334155; color: #cbd5e1; }
+  .field-row { background: #1e293b; border-color: #334155; }
+  .ghost { color: #94a3b8; }
+  .ghost:hover { background: #334155; color: #e2e8f0; }
+  .field-adv { border-top-color: #334155; }
+  .preview-table th, .preview-table td { border-color: #334155; }
+  .preview-table th { background: #0f172a; color: #cbd5e1; }
+  .preview-wrap { border-color: #334155; }
 }
 
 @media (max-width: 520px) {
-  .field-row {
-    grid-template-columns: 1fr 1fr;
-  }
-  .field-name,
-  .field-custom-attr {
-    grid-column: span 2;
-  }
+  .field-main { flex-wrap: wrap; }
+  .field-main .field-name { flex: 1 1 100%; }
 }

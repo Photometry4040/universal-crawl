@@ -49,9 +49,13 @@
       </section>
 
       <section class="step">
-        <h2>③ 필드 매핑</h2>
+        <h2>③ 추출할 항목</h2>
+        <p class="hint">
+          가져올 항목마다 <b>+ 항목 추가</b> → 대상 페이지에서 그 부분(제목·가격 등)을
+          <b>클릭</b>하면 됩니다. 이름·셀렉터는 자동으로 채워집니다.
+        </p>
         <div id="field-list" class="field-list"></div>
-        <button id="add-field" type="button" class="secondary">필드 행 추가</button>
+        <button id="add-field" type="button">+ 항목 추가 (클릭으로 집기)</button>
       </section>
 
       <section class="step">
@@ -84,8 +88,10 @@
         <h2>⑤ 실행 · 결과</h2>
         <div class="run-row">
           <button id="run-extract" type="button">현재 페이지 추출</button>
+          <button id="run-collect" type="button">N페이지 수집</button>
           <span class="run-count">누적 <b id="row-count">0</b>행</span>
         </div>
+        <p id="progress" class="progress"></p>
         <div class="export-row">
           <button id="export-csv" type="button" class="secondary">CSV 저장</button>
           <button id="export-json" type="button" class="secondary">JSON 저장</button>

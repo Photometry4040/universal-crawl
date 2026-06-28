@@ -17,6 +17,8 @@
     "core:event:default",
     "allow-on-pick",
     "allow-on-field-pick",
-    "allow-collect-rows"
+    "allow-collect-rows",
+    "allow-paginate-result",
+    "allow-page-ready"
   ]
 }
