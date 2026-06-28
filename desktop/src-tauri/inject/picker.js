@@ -214,8 +214,10 @@
     var P = window.__ucPaginate;
     if (!P) { safeInvoke('paginate_result', { hasNext: false }); return; }
     var pg = (profile && profile.pagination) || {};
+    diag('paginate 계산: ' + (pg.type || 'next_button') + ' page=' + currentPage);
     if (pg.type === 'infinite_scroll') {
       P.scrollAndWait(profile).then(function (res) {
+        diag('paginate 결과: scroll grew=' + !!res.grew);
         safeInvoke('paginate_result', { hasNext: !!res.grew, scrolled: true });
       });
       return;
@@ -223,8 +225,10 @@
     var next = P.getNext(profile, currentPage);
     if (next.jsButton) {
       P.clickJsNext(profile);
+      diag('paginate 결과: js button click');
       safeInvoke('paginate_result', { hasNext: true, clicked: true });
     } else {
+      diag('paginate 결과: hasNext=' + !!next.hasNext + (next.href ? ' href=' + next.href : ''));
       safeInvoke('paginate_result', { hasNext: !!next.hasNext, href: next.href || null });
     }
   }
@@ -259,14 +263,27 @@
       try {
         window.__TAURI__.event.listen('uc-cmd', function (ev) { handleCmd(ev && ev.payload); });
         diag('연결됨 · uc-cmd 대기 (invoke=' + (hasInvoke() ? 'OK' : '없음') + ')');
-        // 페이지 로드(또는 navigate 후 재주입) 시 백엔드에 통지 — 잡 재개 핸드셰이크.
-        safeInvoke('page_ready', { url: String(location.href) });
-        checkRobots();
+        notifyWhenReady();
       } catch (e) { diag('listen 등록 예외: ' + e); }
     } else if (tries > 0) {
       setTimeout(function () { registerCmdListener(tries - 1); }, 200);
     } else {
       diag('미연결 — window.__TAURI__.event 없음(원격 IPC 비활성?)');
+    }
+  }
+
+  // 페이지 로드(또는 navigate 후 재주입) 시 백엔드에 통지 — 잡 재개 핸드셰이크.
+  // initialization_script는 문서 초기에 실행될 수 있으므로 DOMContentLoaded 이후에 보낸다.
+  function notifyWhenReady() {
+    function ready() {
+      diag('page_ready 전송: ' + String(location.href));
+      safeInvoke('page_ready', { url: String(location.href) });
+      checkRobots();
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', ready, { once: true });
+    } else {
+      setTimeout(ready, 0);
     }
   }
 

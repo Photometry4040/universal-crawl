@@ -108,10 +108,20 @@ check('[페이지] url_pattern paginate_result 호출', !!pr1);
 check('[페이지] url_pattern hasNext=true', !!pr1 && pr1.args.hasNext === true);
 check('[페이지] url_pattern href=page/2', !!pr1 && /\/page\/2\/$/.test(pr1.args.href || ''), pr1 && pr1.args.href);
 
+// url_pattern: UI placeholder의 {page}도 지원
+window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'url_pattern', pattern: 'https://quotes.toscrape.com/page/{page}/' } }, 1);
+const prPage = lastCall('paginate_result');
+check('[페이지] url_pattern {page} href=page/2', !!prPage && /\/page\/2\/$/.test(prPage.args.href || ''), prPage && prPage.args.href);
+
 // next_button: .next a 의 href 회수
 window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'next_button', selector: '.next a' } }, 1);
 const pr2 = lastCall('paginate_result');
 check('[페이지] next_button href 회수', !!pr2 && /\/page\/2\/$/.test(pr2.args.href || ''), pr2 && pr2.args.href);
+
+// next_button: 초보자용 빈 입력이면 일반적인 next 링크를 자동 탐색
+window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'next_button', selector: '' } }, 1);
+const prAuto = lastCall('paginate_result');
+check('[페이지] next_button 빈 셀렉터 자동 탐색', !!prAuto && /\/page\/2\/$/.test(prAuto.args.href || ''), prAuto && prAuto.args.href);
 
 // next_button 없음: hasNext=false
 window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'next_button', selector: '.no-such-next a' } }, 1);

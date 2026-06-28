@@ -16,6 +16,44 @@
 (function () {
   'use strict';
 
+  function findNextElement(selector) {
+    var el = null;
+    if (selector) {
+      try { el = document.querySelector(selector); } catch (e) { el = null; }
+      if (el) return el;
+      return null;
+    }
+
+    var candidates = [
+      'a[rel~="next"]',
+      'link[rel~="next"]',
+      '.next a[href]',
+      'li.next a[href]',
+      'a.next[href]',
+      'a.pagination-next[href]',
+      '[aria-label="Next"]',
+      '[aria-label="next"]',
+      '[aria-label*="Next"]',
+      '[aria-label*="next"]',
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        el = document.querySelector(candidates[i]);
+        if (el) return el;
+      } catch (e2) { /* ignore invalid candidate */ }
+    }
+
+    var links = Array.prototype.slice.call(document.querySelectorAll('a[href], button'));
+    for (var j = 0; j < links.length; j++) {
+      var text = (links[j].textContent || '').replace(/\s+/g, ' ').trim();
+      var label = links[j].getAttribute && (links[j].getAttribute('aria-label') || links[j].getAttribute('title') || '');
+      if (/^(next|next page|다음|›|»|>)$/i.test(text) || /next|다음/i.test(label)) {
+        return links[j];
+      }
+    }
+    return null;
+  }
+
   function getNext(profile, currentPage) {
     var pg = (profile && profile.pagination) || {};
     var type = pg.type || 'next_button';
@@ -23,16 +61,12 @@
     if (type === 'url_pattern') {
       var pattern = pg.pattern || pg.selector || '';
       var n = (currentPage || 1) + 1;
-      var url = pattern.replace(/\{N\}/g, String(n));
+      var url = pattern.replace(/\{N\}/g, String(n)).replace(/\{page\}/g, String(n));
       return { type: type, href: url ? new URL(url, document.baseURI).href : null, hasNext: !!url };
     }
 
     if (type === 'next_button') {
-      var sel = pg.selector;
-      var el = null;
-      if (sel) {
-        try { el = document.querySelector(sel); } catch (e) { el = null; }
-      }
+      var el = findNextElement(pg.selector);
       if (!el) return { type: type, hasNext: false };
       // 링크면 href, 아니면 내부 a 탐색
       var href = el.getAttribute && el.getAttribute('href');
@@ -56,10 +90,7 @@
 
   function clickJsNext(profile) {
     var pg = (profile && profile.pagination) || {};
-    var sel = pg.selector;
-    if (!sel) return false;
-    var el;
-    try { el = document.querySelector(sel); } catch (e) { return false; }
+    var el = findNextElement(pg.selector);
     if (!el) return false;
     el.click();
     return true;
