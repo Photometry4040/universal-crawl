@@ -255,6 +255,7 @@
         diag('연결됨 · uc-cmd 대기 (invoke=' + (hasInvoke() ? 'OK' : '없음') + ')');
         // 페이지 로드(또는 navigate 후 재주입) 시 백엔드에 통지 — 잡 재개 핸드셰이크.
         safeInvoke('page_ready', { url: String(location.href) });
+        checkRobots();
       } catch (e) { diag('listen 등록 예외: ' + e); }
     } else if (tries > 0) {
       setTimeout(function () { registerCmdListener(tries - 1); }, 200);
@@ -262,5 +263,32 @@
       diag('미연결 — window.__TAURI__.event 없음(원격 IPC 비활성?)');
     }
   }
+
+  // 대상 origin의 robots.txt를 same-origin fetch(=CORS 없음)로 받아 __ucRobots로 판정.
+  // 상태: allow(🟢)/disallow(🔴)/unknown(🟠 보수적 차단). 백엔드로 보고 → 패널 배너.
+  function checkRobots() {
+    var origin = location.origin;
+    var path = location.pathname + location.search;
+    function report(status, matched) {
+      safeInvoke('robots_status', { origin: origin, path: path, status: status, matched: matched || null });
+    }
+    var ctrl, timer;
+    try { ctrl = new AbortController(); timer = setTimeout(function () { ctrl.abort(); }, 5000); }
+    catch (e) { /* AbortController 없으면 무가드 */ }
+    fetch(origin + '/robots.txt', ctrl ? { signal: ctrl.signal } : undefined)
+      .then(function (res) {
+        if (timer) clearTimeout(timer);
+        if (res.status === 429 || res.status >= 500) { report('unknown'); return null; }
+        if (res.status >= 400) { report('allow', null); return null; } // 규칙 없음
+        return res.text().then(function (txt) {
+          if (!window.__ucRobots || !window.__ucRobots.looksLikeRobots(txt)) { report('allow', null); return; }
+          var parsed = window.__ucRobots.parseRobots(txt);
+          var r = window.__ucRobots.isAllowed(parsed, path);
+          report(r.allowed ? 'allow' : 'disallow', r.matchedBy);
+        });
+      })
+      .catch(function () { if (timer) clearTimeout(timer); report('unknown'); });
+  }
+
   registerCmdListener(30);
 })();

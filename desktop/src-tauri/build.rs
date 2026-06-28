@@ -16,6 +16,8 @@ fn main() {
                 "collect_rows",
                 "paginate_result",
                 "page_ready",
+                "robots_status",
+                "set_consent",
                 "export_csv",
                 "export_json",
             ]),

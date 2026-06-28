@@ -16,6 +16,45 @@ function setStatus(text) {
   $("status").textContent = text;
 }
 
+// ---------- 안전장치: robots 배너 + ToS 게이트 ----------
+const consent = { origin: "", robots: null, ack: false, tos: false };
+
+function renderRobotsBanner() {
+  const b = $("robots-banner");
+  const ackBtn = $("robots-ack");
+  const map = {
+    allow: ["🟢 robots.txt: 수집 허용", "ok"],
+    disallow: ["🔴 robots.txt: 이 경로는 Disallow — 자동 수집이 금지된 사이트입니다", "bad"],
+    unknown: ["🟠 robots.txt 확인 불가 — 보수적으로 차단합니다", "warn"],
+  };
+  const [text, cls] = map[consent.robots] || ["robots 확인 중…", ""];
+  b.textContent = text;
+  b.className = "robots-banner " + cls;
+  // 🟢는 자동 확인, 그 외엔 명시적 "이해했고 계속" 필요
+  if (consent.robots === "allow") {
+    consent.ack = true;
+    ackBtn.hidden = true;
+  } else {
+    ackBtn.hidden = consent.ack; // 이미 눌렀으면 숨김
+  }
+}
+
+function pushConsent() {
+  if (!consent.origin) return;
+  invoke("set_consent", {
+    origin: consent.origin,
+    tos: consent.tos,
+    robotsAck: consent.ack,
+  }).catch(() => {});
+}
+
+function updateGate() {
+  const ok = consent.tos && consent.ack;
+  $("run-extract").disabled = !ok;
+  $("run-collect").disabled = !ok;
+  $("run-extract").title = ok ? "" : "① ToS 확인과 robots 확인이 필요합니다";
+}
+
 // 셀렉터에서 필드 이름 추정(.author → author). 비개발자가 안 짜도 되게.
 function guessFieldName(selector) {
   if (!selector) return "";
@@ -253,6 +292,37 @@ window.addEventListener("DOMContentLoaded", () => {
       $("url-input").value = url;
       openTarget(url);
     });
+  });
+
+  // 초기 게이트: ToS/robots 확인 전엔 추출·수집 비활성
+  updateGate();
+  $("tos-check").addEventListener("change", (e) => {
+    consent.tos = e.target.checked;
+    pushConsent();
+    updateGate();
+  });
+  $("robots-ack").addEventListener("click", () => {
+    consent.ack = true;
+    renderRobotsBanner();
+    pushConsent();
+    updateGate();
+    setStatus("robots 상태 확인됨 — 계속 진행");
+  });
+
+  // 대상 webview가 보고하는 robots.txt 판정 → ① 배너 갱신
+  listen("uc-robots", (event) => {
+    const p = event.payload || {};
+    // origin이 바뀌면 consent 초기화(오리진 스코프, 재확인 강제)
+    if (p.origin !== consent.origin) {
+      consent.origin = p.origin;
+      consent.ack = false;
+      consent.tos = $("tos-check").checked; // 체크 유지 시 반영
+    }
+    consent.robots = p.status;
+    $("consent-area").hidden = false;
+    renderRobotsBanner();
+    pushConsent();
+    updateGate();
   });
 
   $("run-extract").addEventListener("click", runExtract);

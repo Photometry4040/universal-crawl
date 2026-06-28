@@ -11,6 +11,7 @@
     "allow-start-field-pick",
     "allow-request-extract",
     "allow-start-collect",
+    "allow-set-consent",
     "allow-export-csv",
     "allow-export-json"
   ]

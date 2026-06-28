@@ -19,6 +19,7 @@
     "allow-on-field-pick",
     "allow-collect-rows",
     "allow-paginate-result",
-    "allow-page-ready"
+    "allow-page-ready",
+    "allow-robots-status"
   ]
 }

@@ -32,6 +32,15 @@
           <button class="chip" data-url="https://www.scrapethissite.com/pages/forms/">scrapethissite</button>
         </div>
         <p id="open-msg" class="msg"></p>
+
+        <div id="consent-area" class="consent" hidden>
+          <div id="robots-banner" class="robots-banner">robots 확인 중…</div>
+          <button id="robots-ack" type="button" class="secondary" hidden>이해했고 계속한다</button>
+          <label class="tos">
+            <input type="checkbox" id="tos-check" />
+            대상 사이트의 <b>robots.txt·이용약관(ToS)</b>을 준수하며, 교육/테스트 목적으로만 사용합니다.
+          </label>
+        </div>
       </section>
 
       <section class="step">

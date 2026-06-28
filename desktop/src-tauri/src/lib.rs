@@ -3,7 +3,7 @@
 //! 임베디드 WebView(target 윈도)에 시각적 셀렉터 집기·추출 스크립트를 주입하고,
 //! 집은 셀렉터/추출 행을 메인 컨트롤 패널로 전달하며, 결과를 로컬 파일로 내보낸다.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Duration;
 use serde::{Deserialize, Serialize};
@@ -26,6 +26,8 @@ struct AppState {
     rows: Mutex<Vec<Value>>,
     headers: Mutex<Vec<String>>,
     job: Mutex<Job>,
+    /// origin → (tos 동의, robots 확인). 안전장치 백엔드 재검증용(origin 스코프).
+    consent: Mutex<HashMap<String, (bool, bool)>>,
 }
 
 /// 다중 페이지 수집 잡 상태. background(Rust)가 주도하고 storage 대신 메모리에 보관
@@ -158,9 +160,53 @@ fn on_field_pick(app: tauri::AppHandle, pick: Value) -> Result<(), String> {
     Ok(())
 }
 
+/// 현재 대상 webview의 origin(scheme://host[:port]) 추출.
+fn target_origin(app: &tauri::AppHandle) -> Option<String> {
+    let win = app.get_webview_window("target")?;
+    let url = win.url().ok()?;
+    let host = url.host_str()?;
+    match url.port() {
+        Some(p) => Some(format!("{}://{}:{}", url.scheme(), host, p)),
+        None => Some(format!("{}://{}", url.scheme(), host)),
+    }
+}
+
+/// 안전장치(ToS·robots) 백엔드 재검증. consent(tos && robots_ack) 없으면 거부.
+fn require_consent(app: &tauri::AppHandle, state: &AppState) -> Result<(), String> {
+    let origin = target_origin(app).ok_or("대상 origin을 확인할 수 없습니다.")?;
+    let consent = state.consent.lock().map_err(|e| e.to_string())?;
+    match consent.get(&origin) {
+        Some((tos, ack)) if *tos && *ack => Ok(()),
+        _ => Err("추출 전 ToS 확인과 robots 상태 확인이 필요합니다(① 대상 확인).".into()),
+    }
+}
+
+/// 대상 webview가 robots.txt 판정 결과를 보고 → 패널로 전파(배너 표시).
+#[tauri::command]
+fn robots_status(app: tauri::AppHandle, origin: String, path: String, status: String, matched: Option<String>) -> Result<(), String> {
+    app.emit(
+        "uc-robots",
+        serde_json::json!({ "origin": origin, "path": path, "status": status, "matched": matched }),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 패널 → origin별 consent 저장(ToS 동의 + robots 확인). 프로필엔 직렬화하지 않음.
+#[tauri::command]
+fn set_consent(state: tauri::State<AppState>, origin: String, tos: bool, robots_ack: bool) -> Result<(), String> {
+    state
+        .consent
+        .lock()
+        .map_err(|e| e.to_string())?
+        .insert(origin, (tos, robots_ack));
+    Ok(())
+}
+
 /// 패널 → 대상 webview에 추출 지시('uc-cmd' extract). 결과는 대상이 collect_rows로 되돌려 보낸다.
 #[tauri::command]
-fn request_extract(app: tauri::AppHandle, profile: Value) -> Result<(), String> {
+fn request_extract(app: tauri::AppHandle, state: tauri::State<AppState>, profile: Value) -> Result<(), String> {
+    require_consent(&app, &state)?;
     send_to_target(&app, serde_json::json!({ "action": "extract", "profile": profile }))
 }
 
@@ -174,6 +220,7 @@ fn start_collect(
     if app.get_webview_window("target").is_none() {
         return Err("대상 창이 열려 있지 않습니다. 먼저 '대상 열기'를 누르세요.".into());
     }
+    require_consent(&app, &state)?;
     let delay = clamp_delay(json_i64(&profile, "delay_ms", 2000));
     let maxp = clamp_pages(json_i64(&profile, "max_pages", 1));
     let headers: Vec<String> = profile
@@ -509,6 +556,8 @@ pub fn run() {
             collect_rows,
             paginate_result,
             page_ready,
+            robots_status,
+            set_consent,
             export_csv,
             export_json
         ])
