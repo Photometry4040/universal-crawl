@@ -6,7 +6,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{Emitter, EventTarget, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -74,17 +73,6 @@ fn row_key(row: &Value, dedupe_key: Option<&str>, headers: &[String]) -> Option<
     }
 }
 
-/// picker.js가 invoke('on_pick', { pick })로 보내는 집기 결과.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Pick {
-    selector: String,
-    count: u32,
-    #[serde(rename = "sampleCount")]
-    sample_count: u32,
-    #[serde(rename = "sampleText")]
-    sample_text: String,
-}
-
 /// 연습 전용 사이트만 허용(회피·무단수집 방지). PoC 안전장치.
 fn is_allowed_practice_url(url: &str) -> bool {
     const ALLOW: [&str; 2] = ["toscrape.com", "scrapethissite.com"];
@@ -131,8 +119,9 @@ async fn open_target(app: tauri::AppHandle, url: String) -> Result<(), String> {
 }
 
 /// 주입된 picker.js가 셀렉터를 집을 때마다 호출 → 메인 패널로 이벤트 전파.
+/// 페이로드에 자동 발견 컬럼(fields)도 함께 실어 보낸다.
 #[tauri::command]
-fn on_pick(app: tauri::AppHandle, pick: Pick) -> Result<(), String> {
+fn on_pick(app: tauri::AppHandle, pick: Value) -> Result<(), String> {
     app.emit("uc-pick", &pick).map_err(|e| e.to_string())?;
     Ok(())
 }

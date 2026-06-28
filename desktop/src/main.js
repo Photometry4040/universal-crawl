@@ -270,6 +270,36 @@ function escapeHtml(v) {
     .replace(/>/g, "&gt;");
 }
 
+// 자동 발견 컬럼 → ③ 필드 행 자동 생성 + 샘플 1행 미리보기(동의 없이도 에코).
+function applyAutoFields(fields) {
+  if (!Array.isArray(fields) || !fields.length) return;
+  $("field-list").innerHTML = ""; // 기존 행 교체
+  fields.forEach((f) => {
+    const idx = addFieldRow({ silent: true });
+    const row = document.querySelector(`.field-row[data-field-index="${idx}"]`);
+    if (!row) return;
+    row.querySelector(".field-name").value = f.name || "";
+    row.querySelector(".field-selector").value = f.selector || "";
+    const attrSel = row.querySelector(".field-attr");
+    if (["text", "href", "src", "text_all"].includes(f.attr)) {
+      attrSel.value = f.attr;
+      attrSel.dispatchEvent(new Event("change"));
+    }
+    const preview = row.querySelector(".field-preview");
+    if (preview) {
+      preview.textContent = f.sample != null && f.sample !== "" ? "“" + String(f.sample).slice(0, 40) + "”" : "(빈 값)";
+      preview.classList.add("picked");
+    }
+  });
+  // 샘플 1행 미리보기로 '이렇게 뽑혀요'를 즉시 보여줌(전체 추출은 ToS 확인 후).
+  const headers = fields.map((f) => f.name);
+  const sampleRow = {};
+  fields.forEach((f) => { sampleRow[f.name] = f.sample; });
+  renderPreview({ headers, preview: [sampleRow], count: 1 });
+  $("progress").textContent =
+    "자동으로 " + fields.length + "개 항목을 찾았어요 — 이름을 바꾸거나 ✕로 지우고, ① ToS 확인 후 추출하세요.";
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   addFieldRow({ silent: true });
 
@@ -338,6 +368,8 @@ window.addEventListener("DOMContentLoaded", () => {
     $("r-samples").textContent = p.sampleCount ?? "—";
     $("r-text").textContent = p.sampleText || "—";
     setStatus("셀렉터 집힘 · " + (p.count ?? 0) + "개 매칭");
+    // 자동 발견된 컬럼이 있으면 ③에 자동 채우고 샘플 미리보기 표시(초보자 친화).
+    if (Array.isArray(p.fields) && p.fields.length) applyAutoFields(p.fields);
   });
 
   // 추출 결과(collect_rows → 'uc-rows') → 누적 개수·미리보기·진행률 갱신

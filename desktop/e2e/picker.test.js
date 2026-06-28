@@ -23,9 +23,9 @@ function check(name, cond, extra) {
 
 // quotes.toscrape.com 유사 DOM
 const HTML = `<!doctype html><html><body><div class="container">
-  <div class="quote"><span class="text">"Q1"</span><small class="author">A1</small><a class="tag" href="/t/1">t1</a></div>
-  <div class="quote"><span class="text">"Q2"</span><small class="author">A2</small><a class="tag" href="/t/2">t2</a></div>
-  <div class="quote"><span class="text">"Q3"</span><small class="author">A3</small><a class="tag" href="/t/3">t3</a></div>
+  <div class="quote"><span class="label">항목:</span><span class="text">"Q1"</span><small class="author">A1</small><a class="tag" href="/t/1">t1</a></div>
+  <div class="quote"><span class="label">항목:</span><span class="text">"Q2"</span><small class="author">A2</small><a class="tag" href="/t/2">t2</a></div>
+  <div class="quote"><span class="label">항목:</span><span class="text">"Q3"</span><small class="author">A3</small><a class="tag" href="/t/3">t3</a></div>
 </div><nav><ul class="pager"><li class="next"><a href="/page/2/">Next</a></li></ul></nav></body></html>`;
 
 const dom = new JSDOM(HTML, { url: 'https://quotes.toscrape.com/', runScripts: 'outside-only' });
@@ -117,6 +117,16 @@ check('[페이지] next_button href 회수', !!pr2 && /\/page\/2\/$/.test(pr2.ar
 window.__ucRunPaginate({ row_selector: '.quote', pagination: { type: 'next_button', selector: '.no-such-next a' } }, 1);
 const pr3 = lastCall('paginate_result');
 check('[페이지] 다음 없음 → hasNext=false', !!pr3 && pr3.args.hasNext === false);
+
+// --- 5) 자동 컬럼 발견(autoFields) ---
+const auto = window.__ucInfer.autoFields(quotes[0], ".quote");
+const names = auto.map((f) => f.name);
+const sels = auto.map((f) => f.selector);
+check("[자동] autoFields 컬럼 발견(>=2)", auto.length >= 2, names.join(","));
+check("[자동] .text 컬럼 포함", sels.includes(".text"));
+check("[자동] .author 컬럼 포함", sels.includes(".author"));
+check("[자동] 상수 보일러플레이트(.label) 제외", !sels.includes(".label"), sels.join(","));
+check("[자동] 샘플값 채워짐(text)", auto.some((f) => f.selector === ".text" && f.sample === '"Q1"'));
 
 console.log(`\n==== picker e2e: ${pass} PASS / ${fail} FAIL ====`);
 process.exit(fail ? 1 : 0);

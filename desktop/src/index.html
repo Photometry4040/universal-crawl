@@ -44,27 +44,31 @@
       </section>
 
       <section class="step">
-        <h2>② 집은 셀렉터</h2>
-        <div class="result">
-          <div class="result-row"><label>셀렉터</label><code id="r-selector">—</code></div>
-          <div class="result-row"><label>매칭</label><span id="r-count">—</span></div>
-          <div class="result-row"><label>샘플 수</label><span id="r-samples">—</span></div>
-          <div class="result-row"><label>예시 텍스트</label><span id="r-text">—</span></div>
-        </div>
+        <h2>② 목록 항목 클릭 → 자동 표 만들기</h2>
         <p class="hint">
-          대상 창에서 요소를 <b>클릭</b>하면 공통 셀렉터를 역추론해 유사 요소를
-          하이라이트하고 결과가 여기로 전달됩니다. <kbd>ESC</kbd>로 선택 종료.
+          대상 창에서 <b>목록의 항목 하나</b>(상품 카드·글 한 줄 등)를 <b>클릭</b>하면,
+          비슷한 항목들을 자동으로 찾고 <b>그 안의 정보(제목·가격·링크 등)를 컬럼으로 자동 정리</b>합니다.
+          아래 ③에 결과가 채워집니다. <kbd>ESC</kbd>로 선택 종료.
         </p>
+        <details class="adv-details">
+          <summary>집은 셀렉터 자세히</summary>
+          <div class="result">
+            <div class="result-row"><label>셀렉터</label><code id="r-selector">—</code></div>
+            <div class="result-row"><label>매칭</label><span id="r-count">—</span></div>
+            <div class="result-row"><label>샘플 수</label><span id="r-samples">—</span></div>
+            <div class="result-row"><label>예시</label><span id="r-text">—</span></div>
+          </div>
+        </details>
       </section>
 
       <section class="step">
-        <h2>③ 추출할 항목</h2>
+        <h2>③ 가져올 항목 (자동으로 채워짐)</h2>
         <p class="hint">
-          가져올 항목마다 <b>+ 항목 추가</b> → 대상 페이지에서 그 부분(제목·가격 등)을
-          <b>클릭</b>하면 됩니다. 이름·셀렉터는 자동으로 채워집니다.
+          ②에서 항목을 클릭하면 여기에 <b>자동으로</b> 채워집니다. 필요 없는 항목은
+          <b>✕</b>로 지우고 <b>이름만</b> 바꾸면 됩니다. 빠진 게 있으면 아래로 직접 추가.
         </p>
         <div id="field-list" class="field-list"></div>
-        <button id="add-field" type="button">+ 항목 추가 (클릭으로 집기)</button>
+        <button id="add-field" type="button" class="secondary">+ 항목 직접 추가 (클릭으로 집기)</button>
       </section>
 
       <section class="step">

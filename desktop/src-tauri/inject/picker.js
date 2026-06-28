@@ -147,12 +147,18 @@
     }
 
     var sampleText = (row.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+    // 자동 컬럼 발견: 행 안 텍스트/이미지를 컬럼으로 자동 추출(초보자 친화).
+    var autoCols = [];
+    try { autoCols = (INFER.autoFields ? INFER.autoFields(row, selector) : []) || []; } catch (e) { autoCols = []; }
+
     badge.innerHTML =
       '<b>셀렉터</b>  ' + escapeHtml(selector) + '\n' +
       '<b>매칭</b>    ' + count + '개   (샘플 ' + samples.length + ')\n' +
-      '<b>예시</b>    ' + escapeHtml(sampleText);
+      '<b>자동컬럼</b> ' + autoCols.length + '개  ' + escapeHtml(autoCols.map(function (f) { return f.name; }).join(', '));
 
-    safeInvoke('on_pick', { pick: { selector: selector, count: count, sampleCount: samples.length, sampleText: sampleText } });
+    safeInvoke('on_pick', {
+      pick: { selector: selector, count: count, sampleCount: samples.length, sampleText: sampleText, fields: autoCols },
+    });
   }
 
   function onClick(e) {

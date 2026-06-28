@@ -211,6 +211,108 @@
     return bestScore >= 3 ? best : el;
   }
 
+  // ---------- 자동 컬럼 발견 (Auto-detect) ----------
+  // 행 하나만 클릭하면 그 안의 의미있는 세부 항목(텍스트/이미지)을 자동으로 컬럼화한다.
+  // 초보자가 항목마다 집지 않아도 표가 바로 나오게 함. 재사용: inferRelative.
+
+  // el의 '자기 텍스트'(자식 요소 텍스트 제외) — 텍스트 leaf 판별용.
+  function ownText(el) {
+    var t = '';
+    var kids = el.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].nodeType === 3) t += kids[i].nodeValue;
+    }
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  function readVal(node, attr) {
+    if (!node) return null;
+    if (attr === 'src' || attr === 'href') {
+      var raw = node.getAttribute(attr);
+      try { return raw == null ? null : new URL(raw, document.baseURI).href; } catch (e) { return raw; }
+    }
+    var t = node.textContent;
+    return t == null ? null : t.replace(/\s+/g, ' ').trim();
+  }
+
+  function guessColName(el, attr, idx) {
+    var cand = el.getAttribute('aria-label') || el.getAttribute('title') ||
+               (attr === 'src' ? el.getAttribute('alt') : '') || '';
+    var cls = stableClasses(el);
+    if (!cand && cls.length) cand = cls[cls.length - 1];
+    if (!cand) cand = attr === 'src' ? 'image' : (attr === 'href' ? 'link' : 'text');
+    cand = String(cand).toLowerCase().replace(/[^a-z0-9가-힣]+/g, '_').replace(/^_+|_+$/g, '');
+    return cand || ('field_' + (idx + 1));
+  }
+
+  // rowEl: 클릭/스냅된 행 1개. rowSelector: 전체 행 셀렉터(coverage 검증용, 없으면 단일 행).
+  // 반환: [{ name, selector, attr, transform, sample }]
+  function autoFields(rowEl, rowSelector) {
+    if (!rowEl || rowEl.nodeType !== 1) return [];
+    var candidates = [];
+    var seen = {};
+
+    // 1) 텍스트 leaf(자기 텍스트가 있는 요소) + 이미지 src 후보 수집
+    Array.prototype.forEach.call(rowEl.querySelectorAll('*'), function (el) {
+      if (el.id === 'uc-badge' || el.id === 'uc-diag') return;
+      var tag = tagName(el);
+      if (tag === 'img' && el.getAttribute('src')) {
+        candidates.push({ el: el, attr: 'src' });
+      }
+      var ot = ownText(el);
+      if (ot && ot.length <= 200) candidates.push({ el: el, attr: 'text' });
+    });
+
+    // 2) 상대 셀렉터화 + 중복 제거
+    var fields = [];
+    candidates.forEach(function (c) {
+      var sel = inferRelative(rowEl, c.el);
+      if (!sel) return;
+      var key = sel + '|' + c.attr;
+      if (seen[key]) return;
+      seen[key] = true;
+      fields.push({ el: c.el, selector: sel, attr: c.attr });
+    });
+
+    // 3) coverage/상수 필터 — 행 전체에 적용해 노이즈(라벨·보일러플레이트) 제거
+    var rows = [];
+    if (rowSelector) {
+      try { rows = Array.prototype.slice.call(document.querySelectorAll(rowSelector)); } catch (e) { rows = []; }
+    }
+    if (!rows.length) rows = [rowEl];
+
+    fields = fields.filter(function (f) {
+      var vals = rows.map(function (r) {
+        var n;
+        try { n = r.querySelector(':scope ' + f.selector); } catch (e) { n = null; }
+        return n ? readVal(n, f.attr) : null;
+      });
+      var nonEmpty = vals.filter(function (v) { return v != null && v !== ''; }).length;
+      if (nonEmpty / rows.length < 0.3) return false; // 30% 미만 매칭 = 제외
+      if (rows.length >= 3) {
+        var distinct = {};
+        vals.forEach(function (v) { if (v) distinct[v] = 1; });
+        if (Object.keys(distinct).length <= 1) return false; // 모든 행 동일값 = 보일러플레이트
+      }
+      return true;
+    });
+
+    // 4) 명명 + 샘플값 + 중복 이름 정리
+    var usedNames = {};
+    return fields.slice(0, 12).map(function (f, i) {
+      var name = guessColName(f.el, f.attr, i);
+      if (usedNames[name]) { var n = 2; while (usedNames[name + '_' + n]) n++; name = name + '_' + n; }
+      usedNames[name] = 1;
+      return {
+        name: name,
+        selector: f.selector,
+        attr: f.attr,
+        transform: 'none',
+        sample: readVal(f.el, f.attr),
+      };
+    });
+  }
+
   window.__ucInfer = {
     inferFromSamples: inferFromSamples,
     inferSingle: inferSingle,
@@ -218,5 +320,6 @@
     previewCount: previewCount,
     inferRelative: inferRelative,
     snapToRepeatingContainer: snapToRepeatingContainer,
+    autoFields: autoFields,
   };
 })();
