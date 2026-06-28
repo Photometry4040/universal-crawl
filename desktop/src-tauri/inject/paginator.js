@@ -16,11 +16,20 @@
 (function () {
   'use strict';
 
-  function findNextElement(selector) {
+  function fallbackSelector(el) {
+    if (!el) return '';
+    if (window.__ucFinder) {
+      try { return window.__ucFinder(el); } catch (e) { /* ignore */ }
+    }
+    var tag = el.tagName ? el.tagName.toLowerCase() : '';
+    return tag || '';
+  }
+
+  function findNextInfo(selector) {
     var el = null;
     if (selector) {
       try { el = document.querySelector(selector); } catch (e) { el = null; }
-      if (el) return el;
+      if (el) return { el: el, selector: selector };
       return null;
     }
 
@@ -39,7 +48,7 @@
     for (var i = 0; i < candidates.length; i++) {
       try {
         el = document.querySelector(candidates[i]);
-        if (el) return el;
+        if (el) return { el: el, selector: candidates[i] };
       } catch (e2) { /* ignore invalid candidate */ }
     }
 
@@ -48,10 +57,36 @@
       var text = (links[j].textContent || '').replace(/\s+/g, ' ').trim();
       var label = links[j].getAttribute && (links[j].getAttribute('aria-label') || links[j].getAttribute('title') || '');
       if (/^(next|next page|다음|›|»|>)$/i.test(text) || /next|다음/i.test(label)) {
-        return links[j];
+        return { el: links[j], selector: fallbackSelector(links[j]) };
       }
     }
+    var pageLinks = Array.prototype.slice.call(document.querySelectorAll('a[href*="page"]'));
+    if (pageLinks.length) {
+      return { el: pageLinks[pageLinks.length - 1], selector: 'a[href*="page"]' };
+    }
     return null;
+  }
+
+  function findNextElement(selector) {
+    var info = findNextInfo(selector);
+    return info && info.el;
+  }
+
+  function detectNext() {
+    var info = findNextInfo('');
+    if (!info || !info.el) return null;
+    var el = info.el;
+    var href = el.getAttribute && el.getAttribute('href');
+    if (!href && el.querySelector) {
+      var a = el.querySelector('a[href]');
+      if (a) href = a.getAttribute('href');
+    }
+    return {
+      type: 'next_button',
+      selector: info.selector || fallbackSelector(el),
+      href: href ? new URL(href, document.baseURI).href : null,
+      hasNext: true,
+    };
   }
 
   function getNext(profile, currentPage) {
@@ -134,5 +169,6 @@
     getNext: getNext,
     clickJsNext: clickJsNext,
     scrollAndWait: scrollAndWait,
+    detectNext: detectNext,
   };
 })();

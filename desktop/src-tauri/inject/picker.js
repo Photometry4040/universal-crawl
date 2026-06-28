@@ -150,14 +150,21 @@
     // 자동 컬럼 발견: 행 안 텍스트/이미지를 컬럼으로 자동 추출(초보자 친화).
     var autoCols = [];
     try { autoCols = (INFER.autoFields ? INFER.autoFields(row, selector) : []) || []; } catch (e) { autoCols = []; }
+    var pagination = null;
+    try {
+      pagination = window.__ucPaginate && window.__ucPaginate.detectNext
+        ? window.__ucPaginate.detectNext()
+        : null;
+    } catch (e3) { pagination = null; }
 
     badge.innerHTML =
       '<b>셀렉터</b>  ' + escapeHtml(selector) + '\n' +
       '<b>매칭</b>    ' + count + '개   (샘플 ' + samples.length + ')\n' +
-      '<b>자동컬럼</b> ' + autoCols.length + '개  ' + escapeHtml(autoCols.map(function (f) { return f.name; }).join(', '));
+      '<b>자동컬럼</b> ' + autoCols.length + '개  ' + escapeHtml(autoCols.map(function (f) { return f.name; }).join(', ')) + '\n' +
+      '<b>다음페이지</b> ' + (pagination ? escapeHtml(pagination.selector) : '없음');
 
     safeInvoke('on_pick', {
-      pick: { selector: selector, count: count, sampleCount: samples.length, sampleText: sampleText, fields: autoCols },
+      pick: { selector: selector, count: count, sampleCount: samples.length, sampleText: sampleText, fields: autoCols, pagination: pagination },
     });
   }
 

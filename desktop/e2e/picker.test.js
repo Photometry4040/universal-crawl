@@ -64,6 +64,10 @@ check('[행] on_pick invoke 호출됨', !!onPick);
 const rowSel = onPick && onPick.args && onPick.args.pick && onPick.args.pick.selector;
 check('[행] pick.selector 비어있지 않음', !!rowSel, rowSel);
 check('[행] 셀렉터가 .quote 3개 매칭', !!rowSel && doc.querySelectorAll(rowSel).length === 3, rowSel);
+const pickPagination = onPick && onPick.args && onPick.args.pick && onPick.args.pick.pagination;
+check('[행] 다음 페이지 자동 감지 payload', !!pickPagination && pickPagination.type === 'next_button', pickPagination && JSON.stringify(pickPagination));
+check('[행] 다음 페이지 selector 자동 포함', !!pickPagination && !!pickPagination.selector, pickPagination && pickPagination.selector);
+check('[행] 다음 페이지 href=page/2', !!pickPagination && /\/page\/2\/$/.test(pickPagination.href || ''), pickPagination && pickPagination.href);
 
 // --- 2) 필드 집기 → on_field_pick 전달 ---
 window.__ucStartFieldPick(1);

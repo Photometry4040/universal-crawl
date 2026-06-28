@@ -52,7 +52,13 @@ function updateGate() {
   const ok = consent.tos && consent.ack;
   $("run-extract").disabled = !ok;
   $("run-collect").disabled = !ok;
+  $("target-step").classList.toggle("needs-consent", !ok);
+  $("gate-hint").hidden = ok;
+  $("gate-hint").textContent = consent.origin
+    ? "① ToS 확인 후 추출할 수 있습니다."
+    : "① 대상 열기 후 ToS를 확인하면 추출할 수 있습니다.";
   $("run-extract").title = ok ? "" : "① ToS 확인과 robots 확인이 필요합니다";
+  $("run-collect").title = ok ? "" : "① ToS 확인과 robots 확인이 필요합니다";
 }
 
 // 셀렉터에서 필드 이름 추정(.author → author). 비개발자가 안 짜도 되게.
@@ -170,6 +176,25 @@ async function openTarget(url) {
   }
 }
 
+function isGateOpen() {
+  return consent.tos && consent.ack;
+}
+
+function guideToConsent() {
+  $("target-step").classList.add("needs-consent", "pulse-consent");
+  $("gate-hint").hidden = false;
+  $("gate-hint").textContent = "① ToS 확인 후 추출할 수 있습니다.";
+  $("target-step").scrollIntoView({ behavior: "smooth", block: "start" });
+  setTimeout(() => $("target-step").classList.remove("pulse-consent"), 1200);
+  setStatus("① ToS 확인이 필요합니다");
+}
+
+function ensureRunnable() {
+  if (isGateOpen()) return true;
+  guideToConsent();
+  return false;
+}
+
 // 패널 입력 → profile 조립. row_selector는 ②에서 집은 셀렉터 사용.
 function collectProfile() {
   const rowSelector = $("r-selector").textContent.trim();
@@ -197,6 +222,7 @@ function collectProfile() {
 }
 
 async function runCollect() {
+  if (!ensureRunnable()) return;
   const profile = collectProfile();
   if (!profile.row_selector || profile.row_selector === "—") {
     $("run-msg").textContent = "⚠ 먼저 대상 창에서 행(반복 요소)을 클릭해 집으세요.";
@@ -213,6 +239,7 @@ async function runCollect() {
 }
 
 async function runExtract() {
+  if (!ensureRunnable()) return;
   const profile = collectProfile();
   if (!profile.row_selector || profile.row_selector === "—") {
     $("run-msg").textContent = "⚠ 먼저 대상 창에서 행(반복 요소)을 클릭해 집으세요.";
@@ -225,6 +252,11 @@ async function runExtract() {
   } catch (e) {
     $("run-msg").textContent = "⚠ " + e;
   }
+}
+
+async function runAutoCollect() {
+  if (!ensureRunnable()) return;
+  await runCollect();
 }
 
 async function exportFile(kind) {
@@ -300,6 +332,16 @@ function applyAutoFields(fields) {
     "자동으로 " + fields.length + "개 항목을 찾았어요 — 이름을 바꾸거나 ✕로 지우고, ① ToS 확인 후 추출하세요.";
 }
 
+function applyAutoPagination(pagination) {
+  if (!pagination || pagination.type !== "next_button" || !pagination.selector) return;
+  const radio = document.querySelector('input[name="pagination-mode"][value="next_button"]');
+  if (radio) radio.checked = true;
+  $("pagination-target").value = pagination.selector;
+  $("pagination-auto-msg").hidden = false;
+  const detail = pagination.href ? " · " + pagination.href : "";
+  $("pagination-auto-msg").textContent = "다음 페이지 자동 감지됨 ✓" + detail;
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   addFieldRow({ silent: true });
 
@@ -355,6 +397,7 @@ window.addEventListener("DOMContentLoaded", () => {
     updateGate();
   });
 
+  $("run-auto").addEventListener("click", runAutoCollect);
   $("run-extract").addEventListener("click", runExtract);
   $("run-collect").addEventListener("click", runCollect);
   $("export-csv").addEventListener("click", () => exportFile("csv"));
@@ -370,6 +413,7 @@ window.addEventListener("DOMContentLoaded", () => {
     setStatus("셀렉터 집힘 · " + (p.count ?? 0) + "개 매칭");
     // 자동 발견된 컬럼이 있으면 ③에 자동 채우고 샘플 미리보기 표시(초보자 친화).
     if (Array.isArray(p.fields) && p.fields.length) applyAutoFields(p.fields);
+    applyAutoPagination(p.pagination);
   });
 
   // 추출 결과(collect_rows → 'uc-rows') → 누적 개수·미리보기·진행률 갱신

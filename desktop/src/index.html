@@ -16,7 +16,7 @@
         <p class="sub">임베디드 WebView · 클릭으로 셀렉터 집기 · 연습 전용 사이트</p>
       </header>
 
-      <section class="step">
+      <section id="target-step" class="step">
         <h2>① 대상 열기</h2>
         <form id="open-form" class="open-row">
           <input
@@ -73,6 +73,7 @@
 
       <section class="step">
         <h2>④ 페이지네이션</h2>
+        <p id="pagination-auto-msg" class="auto-msg" hidden>다음 페이지 자동 감지됨 ✓</p>
         <div class="result">
           <div class="result-row">
             <label>방식</label>
@@ -99,9 +100,11 @@
 
       <section class="step">
         <h2>⑤ 실행 · 결과</h2>
+        <button id="run-auto" type="button" class="primary-action">전체 수집 (여러 페이지 자동)</button>
+        <p id="gate-hint" class="gate-hint">① ToS 확인 후 추출할 수 있습니다.</p>
         <div class="run-row">
-          <button id="run-extract" type="button">현재 페이지 추출</button>
-          <button id="run-collect" type="button">N페이지 수집</button>
+          <button id="run-extract" type="button">현재 페이지만 추출</button>
+          <button id="run-collect" type="button">여러 페이지 수집</button>
           <span class="run-count">누적 <b id="row-count">0</b>행</span>
         </div>
         <p id="progress" class="progress"></p>
