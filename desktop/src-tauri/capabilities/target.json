@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "target",
+  "description": "대상 페이지(임베디드 WebView)에서 셀렉터 집기 결과를 백엔드로 전달(on_pick) + 이벤트 수신 허용. 연습 전용 사이트만.",
+  "windows": ["target"],
+  "remote": {
+    "urls": [
+      "https://*.toscrape.com",
+      "http://*.toscrape.com",
+      "https://*.scrapethissite.com",
+      "https://toscrape.com",
+      "https://scrapethissite.com"
+    ]
+  },
+  "permissions": ["core:default", "core:event:default"]
+}

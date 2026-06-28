@@ -1,0 +1,107 @@
+<!doctype html>
+<!-- 교육/테스트 전용 도구. 대상 사이트의 robots.txt·ToS를 반드시 준수할 것. -->
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UniCrawl Desktop (PoC)</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <main class="panel">
+      <header class="panel-head">
+        <h1>UniCrawl Desktop <span class="tag">PoC</span></h1>
+        <p class="sub">임베디드 WebView · 클릭으로 셀렉터 집기 · 연습 전용 사이트</p>
+      </header>
+
+      <section class="step">
+        <h2>① 대상 열기</h2>
+        <form id="open-form" class="open-row">
+          <input
+            id="url-input"
+            value="https://quotes.toscrape.com"
+            placeholder="https://quotes.toscrape.com"
+          />
+          <button type="submit">대상 열기</button>
+        </form>
+        <div class="quick">
+          <button class="chip" data-url="https://quotes.toscrape.com">quotes</button>
+          <button class="chip" data-url="https://books.toscrape.com">books</button>
+          <button class="chip" data-url="https://www.scrapethissite.com/pages/forms/">scrapethissite</button>
+        </div>
+        <p id="open-msg" class="msg"></p>
+      </section>
+
+      <section class="step">
+        <h2>② 집은 셀렉터</h2>
+        <div class="result">
+          <div class="result-row"><label>셀렉터</label><code id="r-selector">—</code></div>
+          <div class="result-row"><label>매칭</label><span id="r-count">—</span></div>
+          <div class="result-row"><label>샘플 수</label><span id="r-samples">—</span></div>
+          <div class="result-row"><label>예시 텍스트</label><span id="r-text">—</span></div>
+        </div>
+        <p class="hint">
+          대상 창에서 요소를 <b>클릭</b>하면 공통 셀렉터를 역추론해 유사 요소를
+          하이라이트하고 결과가 여기로 전달됩니다. <kbd>ESC</kbd>로 선택 종료.
+        </p>
+      </section>
+
+      <section class="step">
+        <h2>③ 필드 매핑</h2>
+        <div id="field-list" class="field-list"></div>
+        <button id="add-field" type="button" class="secondary">필드 행 추가</button>
+      </section>
+
+      <section class="step">
+        <h2>④ 페이지네이션</h2>
+        <div class="result">
+          <div class="result-row">
+            <label>방식</label>
+            <div class="radio-row" role="radiogroup" aria-label="페이지네이션 방식">
+              <label><input type="radio" name="pagination-mode" value="next_button" checked /> next_button</label>
+              <label><input type="radio" name="pagination-mode" value="url_pattern" /> url_pattern</label>
+              <label><input type="radio" name="pagination-mode" value="infinite_scroll" /> infinite_scroll</label>
+            </div>
+          </div>
+          <div class="result-row">
+            <label for="pagination-target">셀렉터/패턴</label>
+            <input id="pagination-target" placeholder=".next a 또는 https://example.com/page/{page}" />
+          </div>
+          <div class="result-row">
+            <label for="pagination-delay">delay(ms)</label>
+            <input id="pagination-delay" type="number" min="2000" step="100" value="2000" />
+          </div>
+          <div class="result-row">
+            <label for="pagination-max-pages">max_pages</label>
+            <input id="pagination-max-pages" type="number" min="1" max="20" step="1" value="5" />
+          </div>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>⑤ 실행 · 결과</h2>
+        <div class="run-row">
+          <button id="run-extract" type="button">현재 페이지 추출</button>
+          <span class="run-count">누적 <b id="row-count">0</b>행</span>
+        </div>
+        <div class="export-row">
+          <button id="export-csv" type="button" class="secondary">CSV 저장</button>
+          <button id="export-json" type="button" class="secondary">JSON 저장</button>
+        </div>
+        <p id="run-msg" class="msg"></p>
+        <div class="preview-wrap">
+          <table id="preview-table" class="preview-table">
+            <tbody><tr><td>—</td></tr></tbody>
+          </table>
+        </div>
+        <p class="hint">미리보기는 상위 10행. 저장 파일은 다운로드 폴더에 생성됩니다(UTF-8 BOM CSV).</p>
+      </section>
+
+      <footer class="foot">
+        <span id="status" class="status">대기 중</span>
+      </footer>
+    </main>
+  </body>
+</html>
