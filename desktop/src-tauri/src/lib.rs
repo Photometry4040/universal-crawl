@@ -136,6 +136,16 @@ fn send_to_target(app: &tauri::AppHandle, payload: Value) -> Result<(), String> 
         .map_err(|e| e.to_string())
 }
 
+fn emit_progress(app: &tauri::AppHandle, message: impl Into<String>) {
+    let message = message.into();
+    let _ = app.emit("uc-progress", serde_json::json!({ "message": message }));
+}
+
+fn diag_target(app: &tauri::AppHandle, message: impl Into<String>) {
+    let message = message.into();
+    let _ = send_to_target(app, serde_json::json!({ "action": "diag", "message": message }));
+}
+
 /// 패널 → 대상 webview를 필드 집기 모드로 전환. 다음 클릭이 상대 셀렉터로 집힌다.
 #[tauri::command]
 fn start_field_pick(app: tauri::AppHandle, field_index: i64) -> Result<(), String> {
@@ -235,6 +245,19 @@ fn start_collect(
     *state.rows.lock().map_err(|e| e.to_string())? = Vec::new();
     *state.headers.lock().map_err(|e| e.to_string())? = headers;
 
+    emit_progress(
+        &app,
+        format!(
+            "수집시작 → max_pages={} delay={}ms pagination={}",
+            maxp,
+            delay,
+            profile
+                .get("pagination")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".into())
+        ),
+    );
+    diag_target(&app, format!("수집시작 → 1페이지 추출 요청 max={}", maxp));
     send_to_target(&app, serde_json::json!({ "action": "extract", "profile": profile }))
 }
 
@@ -280,11 +303,32 @@ fn collect_rows(
         let maxp = job.max_pages;
         let more = page < maxp;
         let profile = job.profile.clone();
+        let page_rows = rows.len();
         if !more {
             job.active = false;
         }
         drop(job);
 
+        emit_progress(
+            &app,
+            format!(
+                "{}페이지 추출 {}행 → 누적 {}행{}",
+                page,
+                page_rows,
+                total,
+                if more { " → paginate 요청" } else { " → 완료" }
+            ),
+        );
+        diag_target(
+            &app,
+            format!(
+                "{}페이지 추출 {}행 → 누적 {}행{}",
+                page,
+                page_rows,
+                total,
+                if more { " → paginate 요청" } else { " → 완료" }
+            ),
+        );
         app.emit(
             "uc-rows",
             serde_json::json!({ "count": total, "headers": headers, "preview": preview,
@@ -325,16 +369,32 @@ fn paginate_result(
     let (delay, profile, scrolled_b, nav_href) = {
         let mut job = state.job.lock().map_err(|e| e.to_string())?;
         if !job.active {
+            emit_progress(&app, "paginate_result 무시 → active job 없음");
             return Ok(());
         }
         if !has_next || job.current_page >= job.max_pages {
             job.active = false;
+            emit_progress(
+                &app,
+                format!(
+                    "paginate 결과 → next 없음 또는 max 도달(has_next={}, page={}, max={})",
+                    has_next, job.current_page, job.max_pages
+                ),
+            );
             let _ = app.emit("uc-rows", serde_json::json!({ "done": true, "job": true }));
             return Ok(());
         }
         job.current_page += 1;
         let s = scrolled.unwrap_or(false);
         job.awaiting_reload = !s; // reload형은 page_ready를 기다림
+        emit_progress(
+            &app,
+            format!(
+                "paginate 결과 → next 감지: {} → {}페이지 준비",
+                href.as_deref().unwrap_or(if s { "scroll" } else { "href 없음" }),
+                job.current_page
+            ),
+        );
         (job.delay_ms, job.profile.clone(), s, if s { None } else { href })
     };
 
@@ -343,6 +403,7 @@ fn paginate_result(
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(delay));
         if scrolled_b {
+            emit_progress(&app2, "scroll 완료 → 같은 페이지 재추출 요청");
             let _ = app2.emit_to(
                 EventTarget::webview_window("target"),
                 "uc-cmd",
@@ -353,9 +414,20 @@ fn paginate_result(
                 if let (Some(win), Ok(u)) =
                     (app2.get_webview_window("target"), url::Url::parse(&h))
                 {
-                    let _ = win.navigate(u);
+                    emit_progress(&app2, format!("navigate({}) 호출", h));
+                    diag_target(&app2, format!("navigate({}) 호출", h));
+                    match win.navigate(u) {
+                        Ok(()) => emit_progress(&app2, format!("navigate({}) 성공 → page_ready 대기", h)),
+                        Err(e) => emit_progress(&app2, format!("navigate({}) 실패: {}", h, e)),
+                    }
+                } else {
+                    emit_progress(&app2, format!("navigate 준비 실패: {}", h));
                 }
+            } else {
+                emit_progress(&app2, format!("navigate 차단됨(허용 URL 아님): {}", h));
             }
+        } else {
+            emit_progress(&app2, "paginate 결과 오류 → href 없음");
         }
         // jsButton click형은 이미 navigate 진행 중 → page_ready가 재추출 트리거.
     });
@@ -369,7 +441,7 @@ fn page_ready(
     state: tauri::State<AppState>,
     url: Option<String>,
 ) -> Result<(), String> {
-    let _ = url;
+    let ready_url = url.unwrap_or_else(|| "(unknown url)".into());
     let (do_extract, profile) = {
         let mut job = state.job.lock().map_err(|e| e.to_string())?;
         if job.active && job.awaiting_reload {
@@ -380,7 +452,11 @@ fn page_ready(
         }
     };
     if do_extract {
+        emit_progress(&app, format!("page_ready 수신({}) → 다음 페이지 추출 요청", ready_url));
+        diag_target(&app, format!("page_ready 수신({}) → 다음 페이지 추출 요청", ready_url));
         send_to_target(&app, serde_json::json!({ "action": "extract", "profile": profile }))?;
+    } else {
+        emit_progress(&app, format!("page_ready 수신({}) → 대기 중인 수집 없음", ready_url));
     }
     Ok(())
 }

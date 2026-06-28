@@ -78,6 +78,11 @@
     } catch (e) { diag('✘ ' + cmd + ' 예외: ' + e); }
   }
 
+  function shortJson(v) {
+    try { return JSON.stringify(v).slice(0, 240); }
+    catch (e) { return String(v); }
+  }
+
   function guessAttr(el) {
     var tag = (el.tagName || '').toLowerCase();
     if (tag === 'a' && el.getAttribute('href')) return 'href';
@@ -205,11 +210,13 @@
 
   function runExtract(profile) {
     var rows = [];
+    diag('extract 시작: row=' + (profile && profile.row_selector || ''));
     try {
       if (window.__ucExtract && window.__ucExtract.extractPage) {
         rows = window.__ucExtract.extractPage(profile) || [];
       }
     } catch (e) { rows = []; }
+    diag('extract 완료: ' + rows.length + '행');
     safeInvoke('collect_rows', { rows: rows, fields: (profile && profile.fields) || [] });
     return rows.length;
   }
@@ -221,7 +228,7 @@
     var P = window.__ucPaginate;
     if (!P) { safeInvoke('paginate_result', { hasNext: false }); return; }
     var pg = (profile && profile.pagination) || {};
-    diag('paginate 계산: ' + (pg.type || 'next_button') + ' page=' + currentPage);
+    diag('paginate 요청: ' + (pg.type || 'next_button') + ' page=' + currentPage + ' ' + shortJson(pg));
     if (pg.type === 'infinite_scroll') {
       P.scrollAndWait(profile).then(function (res) {
         diag('paginate 결과: scroll grew=' + !!res.grew);
@@ -263,14 +270,22 @@
     if (p.action === 'field_pick') startFieldPick(p.fieldIndex);
     else if (p.action === 'extract') runExtract(p.profile);
     else if (p.action === 'paginate') runPaginate(p.profile, p.currentPage);
+    else if (p.action === 'diag') diag(p.message || 'backend diag');
     else if (p.action === 'reset') resetPick();
   }
   function registerCmdListener(tries) {
     if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
       try {
-        window.__TAURI__.event.listen('uc-cmd', function (ev) { handleCmd(ev && ev.payload); });
-        diag('연결됨 · uc-cmd 대기 (invoke=' + (hasInvoke() ? 'OK' : '없음') + ')');
-        notifyWhenReady();
+        var registered = window.__TAURI__.event.listen('uc-cmd', function (ev) { handleCmd(ev && ev.payload); });
+        var afterListen = function () {
+          diag('연결됨 · uc-cmd 대기 (invoke=' + (hasInvoke() ? 'OK' : '없음') + ')');
+          notifyWhenReady();
+        };
+        if (registered && typeof registered.then === 'function') {
+          registered.then(afterListen).catch(function (e) { diag('listen 등록 실패: ' + e); });
+        } else {
+          afterListen();
+        }
       } catch (e) { diag('listen 등록 예외: ' + e); }
     } else if (tries > 0) {
       setTimeout(function () { registerCmdListener(tries - 1); }, 200);

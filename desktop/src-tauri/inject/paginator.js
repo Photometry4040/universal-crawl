@@ -28,6 +28,9 @@
   function findNextInfo(selector) {
     var el = null;
     if (selector) {
+      if (/^https?:\/\//i.test(selector)) {
+        return { el: null, selector: selector, href: selector };
+      }
       try { el = document.querySelector(selector); } catch (e) { el = null; }
       if (el) return { el: el, selector: selector };
       return null;
@@ -101,7 +104,11 @@
     }
 
     if (type === 'next_button') {
-      var el = findNextElement(pg.selector);
+      var info = findNextInfo(pg.selector);
+      if (info && info.href) {
+        return { type: type, href: new URL(info.href, document.baseURI).href, hasNext: true };
+      }
+      var el = info && info.el;
       if (!el) return { type: type, hasNext: false };
       // 링크면 href, 아니면 내부 a 탐색
       var href = el.getAttribute && el.getAttribute('href');

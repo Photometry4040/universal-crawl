@@ -16,6 +16,14 @@ function setStatus(text) {
   $("status").textContent = text;
 }
 
+function appendProgress(text) {
+  const el = $("progress");
+  const line = new Date().toLocaleTimeString() + " " + text;
+  const existing = el.textContent ? el.textContent.split("\n") : [];
+  existing.push(line);
+  el.textContent = existing.slice(-8).join("\n");
+}
+
 // ---------- 안전장치: robots 배너 + ToS 게이트 ----------
 const consent = { origin: "", robots: null, ack: false, tos: false };
 
@@ -210,15 +218,38 @@ function collectProfile() {
   });
   const mode = document.querySelector('input[name="pagination-mode"]:checked');
   const target = $("pagination-target").value.trim();
+  let type = mode ? mode.value : "next_button";
+  let selector = target;
+  let pattern = target;
+  if (type === "next_button" && /^https?:\/\//i.test(target)) {
+    type = "url_pattern";
+    const inferred = inferPagePattern(target);
+    selector = "";
+    pattern = inferred || target;
+    const radio = document.querySelector('input[name="pagination-mode"][value="url_pattern"]');
+    if (radio) radio.checked = true;
+    $("pagination-auto-msg").hidden = false;
+    $("pagination-auto-msg").textContent = inferred
+      ? "URL 패턴으로 자동 보정됨 ✓ " + inferred
+      : "URL로 자동 보정됨 ✓";
+  }
   const pagination = {
-    type: mode ? mode.value : "next_button",
-    selector: target,
-    pattern: target,
+    type,
+    selector,
+    pattern,
+    detectedHref: $("pagination-target").dataset.detectedHref || "",
   };
   // 안전장치: UI 입력 보정(백엔드에서 한 번 더 재클램프)
   const delay = Math.max(2000, parseInt($("pagination-delay").value, 10) || 2000);
   const maxPages = Math.min(20, Math.max(1, parseInt($("pagination-max-pages").value, 10) || 1));
   return { row_selector: rowSelector, fields, pagination, delay_ms: delay, max_pages: maxPages, dedupe_key: "" };
+}
+
+function inferPagePattern(url) {
+  return url
+    .replace(/([?&]page=)\d+/i, "$1{page}")
+    .replace(/(\/page\/)\d+(\/?)/i, "$1{page}$2")
+    .replace(/(page[-_=])\d+/i, "$1{page}");
 }
 
 async function runCollect() {
@@ -229,7 +260,15 @@ async function runCollect() {
     return;
   }
   $("run-msg").textContent = "";
-  $("progress").textContent = "수집 시작…";
+  $("progress").textContent = "";
+  appendProgress(
+    "수집시작 → pagination=" +
+      profile.pagination.type +
+      " selector=" +
+      (profile.pagination.selector || "없음") +
+      " pattern=" +
+      (profile.pagination.pattern || "없음")
+  );
   try {
     await invoke("start_collect", { profile });
     setStatus("다중 페이지 수집 시작 (최대 " + profile.max_pages + "페이지)");
@@ -337,9 +376,11 @@ function applyAutoPagination(pagination) {
   const radio = document.querySelector('input[name="pagination-mode"][value="next_button"]');
   if (radio) radio.checked = true;
   $("pagination-target").value = pagination.selector;
+  $("pagination-target").dataset.detectedHref = pagination.href || "";
   $("pagination-auto-msg").hidden = false;
   const detail = pagination.href ? " · " + pagination.href : "";
   $("pagination-auto-msg").textContent = "다음 페이지 자동 감지됨 ✓" + detail;
+  appendProgress("next 자동감지 → selector=" + pagination.selector + (pagination.href ? " href=" + pagination.href : ""));
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -397,6 +438,11 @@ window.addEventListener("DOMContentLoaded", () => {
     updateGate();
   });
 
+  listen("uc-progress", (event) => {
+    const p = event.payload || {};
+    appendProgress(p.message || JSON.stringify(p));
+  });
+
   $("run-auto").addEventListener("click", runAutoCollect);
   $("run-extract").addEventListener("click", runExtract);
   $("run-collect").addEventListener("click", runCollect);
@@ -422,11 +468,12 @@ window.addEventListener("DOMContentLoaded", () => {
     if (payload.preview) renderPreview(payload);
     if (payload.job) {
       if (payload.done) {
-        $("progress").textContent = "✅ 수집 완료 · 누적 " + (payload.count ?? $("row-count").textContent) + "행";
+        appendProgress("✅ 수집 완료 · 누적 " + (payload.count ?? $("row-count").textContent) + "행");
         setStatus("수집 완료");
       } else {
-        $("progress").textContent =
-          "수집 중 · " + (payload.page ?? "?") + "/" + (payload.max ?? "?") + "페이지 · 누적 " + (payload.count ?? 0) + "행";
+        appendProgress(
+          (payload.page ?? "?") + "페이지 추출 완료 → 누적 " + (payload.count ?? 0) + "행"
+        );
         setStatus("수집 중 " + (payload.page ?? "?") + "/" + (payload.max ?? "?"));
       }
     } else {

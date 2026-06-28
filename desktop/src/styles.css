@@ -213,7 +213,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .field-custom-attr[hidden] { display: none; }
 
 .run-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.progress { font-size: 12px; color: #2563eb; margin: 8px 0 0; min-height: 14px; font-weight: 500; }
+.progress {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  color: #2563eb;
+  margin: 8px 0 0;
+  min-height: 14px;
+  font-weight: 500;
+  white-space: pre-wrap;
+}
 .run-count { font-size: 13px; color: #475569; }
 .run-count b { color: #2563eb; }
 .export-row { display: flex; gap: 8px; margin-top: 10px; }
