@@ -1,0 +1,12 @@
+{
+  "name": "unicrawl-desktop-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "description": "데스크탑 주입 스크립트 전달 로직 e2e (jsdom)",
+  "scripts": {
+    "test": "node picker.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24"
+  }
+}

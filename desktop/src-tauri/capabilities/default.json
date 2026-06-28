@@ -1,10 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "메인 컨트롤 패널(로컬) 권한. 패널이 호출하는 app command + 이벤트 수신.",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "core:event:default",
+    "opener:default",
+    "allow-open-target",
+    "allow-start-field-pick",
+    "allow-request-extract",
+    "allow-export-csv",
+    "allow-export-json"
   ]
 }

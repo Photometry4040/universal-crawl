@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-request-extract"
+description = "Enables the request_extract command without any pre-configured scope."
+commands.allow = ["request_extract"]
+
+[[permission]]
+identifier = "deny-request-extract"
+description = "Denies the request_extract command without any pre-configured scope."
+commands.deny = ["request_extract"]

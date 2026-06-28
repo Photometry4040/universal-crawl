@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-start-field-pick"
+description = "Enables the start_field_pick command without any pre-configured scope."
+commands.allow = ["start_field_pick"]
+
+[[permission]]
+identifier = "deny-start-field-pick"
+description = "Denies the start_field_pick command without any pre-configured scope."
+commands.deny = ["start_field_pick"]

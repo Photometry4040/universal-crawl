@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-on-pick"
+description = "Enables the on_pick command without any pre-configured scope."
+commands.allow = ["on_pick"]
+
+[[permission]]
+identifier = "deny-on-pick"
+description = "Denies the on_pick command without any pre-configured scope."
+commands.deny = ["on_pick"]

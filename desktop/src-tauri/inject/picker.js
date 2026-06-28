@@ -1,15 +1,13 @@
 /* 교육/테스트 전용 도구. 대상 사이트의 robots.txt·ToS를 반드시 준수할 것. */
 /*
  * picker.js — 데스크탑 임베디드 WebView용 시각적 셀렉터 집기.
- * 대상 페이지(원격 URL) 컨텍스트에 finder.js → selector-infer.js 다음에 주입된다.
- * 의존: window.__ucFinder, window.__ucInfer (앞서 주입된 모듈).
+ * 대상 페이지(원격 URL) 컨텍스트에 finder.js → selector-infer.js → extractor.js 다음에 주입된다.
+ * 의존: window.__ucFinder, window.__ucInfer, window.__ucExtract (앞서 주입된 모듈).
  *
- * 동작:
- *  - hover → 요소 외곽선 하이라이트
- *  - click → snapToRepeatingContainer로 반복 카드 보정 → __ucInfer로 공통 셀렉터 추론
- *           → 매칭 요소 미리보기 하이라이트 + 개수 → 페이지 내 배지 표시(Layer1)
- *           → Tauri IPC로 우측 컨트롤 패널에 결과 전달 시도(Layer2)
- *  - ESC → 선택 모드 종료/오버레이 제거
+ * Rust↔대상 webview 통신은 모두 'Tauri 이벤트'로 한다(eval은 원격에서 불안정 → 미사용):
+ *  - 대상→백엔드: window.__TAURI__.core.invoke('on_pick'/'on_field_pick'/'collect_rows', ...)
+ *  - 백엔드→대상: window.__TAURI__.event.listen('uc-cmd', ...) 로 field_pick/extract 지시 수신
+ * 진단: 좌상단 배지 + 하단 #uc-diag 에 IPC 연결/전송 상태를 노출(silent 실패 방지).
  */
 (function () {
   'use strict';
@@ -24,16 +22,17 @@
   var rowSelector = '';      // 행 모드에서 확정된 행 셀렉터(필드 모드가 참조)
   var fieldPickIndex = null; // 필드 모드 대상 필드 행 인덱스
 
-  // ---------- 오버레이 스타일 (대상 페이지 CSS와 충돌 없게 인라인) ----------
+  // ---------- 오버레이 스타일 ----------
   var style = document.createElement('style');
   style.textContent =
     '.uc-hover-highlight{outline:2px solid #2d7ff9 !important;outline-offset:-1px;cursor:crosshair !important;}' +
     '.uc-preview-highlight{outline:2px dashed #f9a72d !important;outline-offset:-1px;background:rgba(249,167,45,.08) !important;}' +
     '.uc-sample-highlight{outline:3px solid #16a34a !important;outline-offset:-1px;}' +
-    '#uc-badge{position:fixed;top:10px;left:10px;z-index:2147483647;max-width:60vw;' +
+    '#uc-badge,#uc-diag{position:fixed;left:10px;z-index:2147483647;max-width:60vw;' +
     'background:#111827;color:#e5e7eb;font:12px/1.5 ui-monospace,Menlo,monospace;' +
     'padding:8px 12px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);pointer-events:none;' +
     'white-space:pre-wrap;word-break:break-all;}' +
+    '#uc-badge{top:10px;}#uc-diag{bottom:10px;background:#0b3b2e;color:#bbf7d0;max-width:70vw;}' +
     '#uc-badge b{color:#fbbf24;}';
   document.documentElement.appendChild(style);
 
@@ -42,37 +41,59 @@
   badge.textContent = '셀렉터 집기 모드 · 요소를 클릭하세요 (ESC 종료)';
   document.documentElement.appendChild(badge);
 
+  var diagEl = document.createElement('div');
+  diagEl.id = 'uc-diag';
+  diagEl.textContent = 'IPC: 초기화…';
+  document.documentElement.appendChild(diagEl);
+
+  function diag(msg) {
+    if (diagEl) diagEl.textContent = 'IPC: ' + msg;
+  }
+
   function clearClass(cls) {
     Array.prototype.forEach.call(document.querySelectorAll('.' + cls), function (el) {
       el.classList.remove(cls);
     });
   }
 
-  // ---------- Tauri IPC 브리지 (Layer2, 없어도 Layer1은 동작) ----------
-  function bridge(payload) {
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ---------- Tauri IPC (진단 포함, silent 실패 금지) ----------
+  function hasInvoke() {
+    return !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+  }
+  function safeInvoke(cmd, args) {
+    if (!hasInvoke()) { diag('invoke 불가 — window.__TAURI__.core 없음'); return; }
     try {
-      if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
-        window.__TAURI__.core.invoke('on_pick', { pick: payload });
+      var p = window.__TAURI__.core.invoke(cmd, args);
+      if (p && p.then) {
+        p.then(function () { diag('✔ ' + cmd + ' 전송됨'); })
+         .catch(function (e) { diag('✘ ' + cmd + ' 실패: ' + e); });
+      } else {
+        diag('✔ ' + cmd + ' 전송(동기)');
       }
-    } catch (e) { /* IPC 미허용 시 무시 — 페이지 내 배지로 충분 */ }
+    } catch (e) { diag('✘ ' + cmd + ' 예외: ' + e); }
   }
 
-  function onMove(e) {
-    if (!active) return;
-    var el = e.target;
-    if (!el || el.nodeType !== 1 || el === hovered) return;
-    if (el.id === 'uc-badge') return;
-    if (hovered) hovered.classList.remove('uc-hover-highlight');
-    hovered = el;
-    hovered.classList.add('uc-hover-highlight');
-  }
-
-  // 필드 attr 추정: 링크→href, 이미지→src, 그 외→text.
   function guessAttr(el) {
     var tag = (el.tagName || '').toLowerCase();
     if (tag === 'a' && el.getAttribute('href')) return 'href';
     if (tag === 'img' && el.getAttribute('src')) return 'src';
     return 'text';
+  }
+
+  // ---------- 클릭 처리 ----------
+  function onMove(e) {
+    if (!active) return;
+    var el = e.target;
+    if (!el || el.nodeType !== 1 || el === hovered) return;
+    if (el.id === 'uc-badge' || el.id === 'uc-diag') return;
+    if (hovered) hovered.classList.remove('uc-hover-highlight');
+    hovered = el;
+    hovered.classList.add('uc-hover-highlight');
   }
 
   function onClickField(raw) {
@@ -98,38 +119,29 @@
       '<b>속성</b>    ' + attr + '\n' +
       '<b>예시</b>    ' + escapeHtml(sampleText);
 
-    try {
-      if (window.__TAURI__ && window.__TAURI__.core) {
-        window.__TAURI__.core.invoke('on_field_pick', {
-          pick: { fieldIndex: fieldPickIndex, selector: rel, attr: attr, sampleText: sampleText },
-        });
-      }
-    } catch (e) { /* IPC 미허용 시 배지로 확인 */ }
+    safeInvoke('on_field_pick', {
+      pick: { fieldIndex: fieldPickIndex, selector: rel, attr: attr, sampleText: sampleText },
+    });
 
-    // 1회 집기 후 행 모드로 복귀
     mode = 'row';
     fieldPickIndex = null;
   }
 
   function onClickRow(raw) {
-    // 빽빽한 카드형 목록에서 깊은 셀 클릭 시 반복 카드로 스냅
     var row = INFER.snapToRepeatingContainer(raw);
     if (samples.indexOf(row) === -1) samples.push(row);
-
     row.classList.add('uc-sample-highlight');
 
     var result = INFER.inferFromSamples(samples);
     var selector = result.selector;
     var count = result.count;
-    rowSelector = selector; // 필드 모드가 참조
+    rowSelector = selector;
 
     clearClass('uc-preview-highlight');
     if (selector) {
       try {
         Array.prototype.forEach.call(document.querySelectorAll(selector), function (el) {
-          if (!el.classList.contains('uc-sample-highlight')) {
-            el.classList.add('uc-preview-highlight');
-          }
+          if (!el.classList.contains('uc-sample-highlight')) el.classList.add('uc-preview-highlight');
         });
       } catch (e2) { /* 잘못된 셀렉터 무시 */ }
     }
@@ -140,14 +152,13 @@
       '<b>매칭</b>    ' + count + '개   (샘플 ' + samples.length + ')\n' +
       '<b>예시</b>    ' + escapeHtml(sampleText);
 
-    bridge({ selector: selector, count: count, sampleCount: samples.length, sampleText: sampleText });
+    safeInvoke('on_pick', { pick: { selector: selector, count: count, sampleCount: samples.length, sampleText: sampleText } });
   }
 
   function onClick(e) {
     if (!active) return;
     e.preventDefault();
     e.stopPropagation();
-
     var raw = e.target;
     if (!raw || raw.nodeType !== 1) return;
     if (mode === 'field') onClickField(raw);
@@ -166,17 +177,31 @@
     }
   }
 
-  function escapeHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
   document.addEventListener('mousemove', onMove, true);
   document.addEventListener('click', onClick, true);
   document.addEventListener('keydown', onKey, true);
 
-  // 컨트롤 패널 → 대상 webview 제어용(선택 초기화)
-  window.__ucResetPick = function () {
+  // ---------- 백엔드 지시 핸들러(이벤트 기반, eval 대체) ----------
+  function startFieldPick(idx) {
+    mode = 'field';
+    fieldPickIndex = idx;
+    active = true;
+    if (badge && !badge.parentNode) document.documentElement.appendChild(badge);
+    badge.innerHTML = '<b>필드 집기 #' + idx + '</b>\n행 안의 추출할 요소를 클릭하세요';
+  }
+
+  function runExtract(profile) {
+    var rows = [];
+    try {
+      if (window.__ucExtract && window.__ucExtract.extractPage) {
+        rows = window.__ucExtract.extractPage(profile) || [];
+      }
+    } catch (e) { rows = []; }
+    safeInvoke('collect_rows', { rows: rows, fields: (profile && profile.fields) || [] });
+    return rows.length;
+  }
+
+  function resetPick() {
     samples = [];
     mode = 'row';
     fieldPickIndex = null;
@@ -184,34 +209,32 @@
     clearClass('uc-sample-highlight');
     active = true;
     badge.innerHTML = '셀렉터 집기 모드 · 요소를 클릭하세요 (ESC 종료)';
-  };
+  }
 
-  // 컨트롤 패널 → start_field_pick가 eval로 호출. 다음 클릭을 필드 집기로 처리.
-  window.__ucStartFieldPick = function (idx) {
-    mode = 'field';
-    fieldPickIndex = idx;
-    active = true;
-    if (badge && !badge.parentNode) document.documentElement.appendChild(badge);
-    badge.innerHTML = '<b>필드 집기 #' + idx + '</b>\n행 안의 추출할 요소를 클릭하세요';
-  };
+  // 전역(테스트/직접호출용) — 이벤트 핸들러와 동일 로직 공유
+  window.__ucStartFieldPick = startFieldPick;
+  window.__ucRunExtract = runExtract;
+  window.__ucResetPick = resetPick;
 
-  // 컨트롤 패널 → request_extract가 대상 webview에서 eval로 호출.
-  // __ucExtract.extractPage(profile) 실행 결과를 collect_rows로 백엔드에 반환.
-  window.__ucRunExtract = function (profile) {
-    var rows = [];
-    try {
-      if (window.__ucExtract && window.__ucExtract.extractPage) {
-        rows = window.__ucExtract.extractPage(profile) || [];
-      }
-    } catch (e) { rows = []; }
-    try {
-      if (window.__TAURI__ && window.__TAURI__.core) {
-        window.__TAURI__.core.invoke('collect_rows', {
-          rows: rows,
-          fields: (profile && profile.fields) || [],
-        });
-      }
-    } catch (e) { /* IPC 미허용 시 무시 */ }
-    return rows.length;
-  };
+  // 백엔드 → 대상: 'uc-cmd' 이벤트 수신(eval 대신). __TAURI__.event 준비될 때까지 폴링.
+  function handleCmd(payload) {
+    var p = payload || {};
+    diag('uc-cmd 수신: ' + (p.action || '?'));
+    if (p.action === 'field_pick') startFieldPick(p.fieldIndex);
+    else if (p.action === 'extract') runExtract(p.profile);
+    else if (p.action === 'reset') resetPick();
+  }
+  function registerCmdListener(tries) {
+    if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
+      try {
+        window.__TAURI__.event.listen('uc-cmd', function (ev) { handleCmd(ev && ev.payload); });
+        diag('연결됨 · uc-cmd 대기 (invoke=' + (hasInvoke() ? 'OK' : '없음') + ')');
+      } catch (e) { diag('listen 등록 예외: ' + e); }
+    } else if (tries > 0) {
+      setTimeout(function () { registerCmdListener(tries - 1); }, 200);
+    } else {
+      diag('미연결 — window.__TAURI__.event 없음(원격 IPC 비활성?)');
+    }
+  }
+  registerCmdListener(30);
 })();

@@ -12,5 +12,11 @@
       "https://scrapethissite.com"
     ]
   },
-  "permissions": ["core:default", "core:event:default"]
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "allow-on-pick",
+    "allow-on-field-pick",
+    "allow-collect-rows"
+  ]
 }

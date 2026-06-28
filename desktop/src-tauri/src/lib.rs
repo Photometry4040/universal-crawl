@@ -6,7 +6,7 @@
 use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, EventTarget, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// 대상 페이지에 주입되는 모듈(컴파일 타임 임베드). 주입 순서가 중요:
 /// finder → selector-infer → extractor → robots → serialize → picker.
@@ -86,15 +86,20 @@ fn on_pick(app: tauri::AppHandle, pick: Pick) -> Result<(), String> {
     Ok(())
 }
 
+/// 백엔드 → 대상 webview로 지시 이벤트('uc-cmd') 전송. eval 대신 이벤트 사용
+/// (원격 webview에서 eval은 불안정; 이벤트는 target의 core:event 권한으로 수신).
+fn send_to_target(app: &tauri::AppHandle, payload: Value) -> Result<(), String> {
+    if app.get_webview_window("target").is_none() {
+        return Err("대상 창이 열려 있지 않습니다. 먼저 '대상 열기'를 누르세요.".into());
+    }
+    app.emit_to(EventTarget::webview_window("target"), "uc-cmd", payload)
+        .map_err(|e| e.to_string())
+}
+
 /// 패널 → 대상 webview를 필드 집기 모드로 전환. 다음 클릭이 상대 셀렉터로 집힌다.
 #[tauri::command]
 fn start_field_pick(app: tauri::AppHandle, field_index: i64) -> Result<(), String> {
-    let win = app
-        .get_webview_window("target")
-        .ok_or("대상 창이 열려 있지 않습니다.")?;
-    win.eval(&format!("window.__ucStartFieldPick({})", field_index))
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    send_to_target(&app, serde_json::json!({ "action": "field_pick", "fieldIndex": field_index }))
 }
 
 /// 대상 webview가 필드 집기 결과를 되돌려 보냄 → 패널로 전파(해당 필드 행 채우기).
@@ -104,17 +109,10 @@ fn on_field_pick(app: tauri::AppHandle, pick: Value) -> Result<(), String> {
     Ok(())
 }
 
-/// 패널 → 대상 webview에서 __ucRunExtract(profile) 실행 지시(eval).
-/// 결과는 대상이 collect_rows로 되돌려 보낸다(fire-and-forget eval).
+/// 패널 → 대상 webview에 추출 지시('uc-cmd' extract). 결과는 대상이 collect_rows로 되돌려 보낸다.
 #[tauri::command]
 fn request_extract(app: tauri::AppHandle, profile: Value) -> Result<(), String> {
-    let win = app
-        .get_webview_window("target")
-        .ok_or("대상 창이 열려 있지 않습니다. 먼저 '대상 열기'를 누르세요.")?;
-    let json = serde_json::to_string(&profile).map_err(|e| e.to_string())?;
-    win.eval(&format!("window.__ucRunExtract({})", json))
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    send_to_target(&app, serde_json::json!({ "action": "extract", "profile": profile }))
 }
 
 /// 대상 webview가 추출 결과를 되돌려 보냄 → 누적 후 미리보기 이벤트 발행.
